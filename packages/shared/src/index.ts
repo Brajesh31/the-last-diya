@@ -1,16 +1,32 @@
-export const GAME_PHASE = 'Phase 1 · Technical Prototype';
+export const GAME_PHASE = 'Phase 2 · Core Gameplay';
 export const LIGHT_LEVEL_START = 0;
 export const MAX_LIGHT_LEVEL = 100;
 export const DEFAULT_ROOM_CAPACITY = 10;
 
 export type PlayerId = string;
 export type RoomId = string;
+export type ItemId = 'diya' | 'oil' | 'wick' | 'flower' | 'sweet' | 'memory_fragment';
 
 export interface PlayerTransform {
   x: number;
   y: number;
   z: number;
   rotation: number;
+}
+
+export interface InventoryItemState {
+  id: ItemId;
+  quantity: number;
+}
+
+export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya';
+export type QuestStatus = 'locked' | 'available' | 'active' | 'completed';
+
+export interface QuestState {
+  id: QuestId;
+  status: QuestStatus;
+  progress: number;
+  target: number;
 }
 
 export type ClientMessage =
@@ -26,5 +42,7 @@ export type ServerMessage =
   | { type: 'player_left'; playerId: PlayerId }
   | { type: 'light_update'; level: number; source: PlayerId }
   | { type: 'interaction_result'; success: boolean; targetId: string; lightLevel: number; source: PlayerId }
+  | { type: 'inventory_update'; playerId: PlayerId; items: InventoryItemState[] }
+  | { type: 'quest_update'; playerId: PlayerId; quests: QuestState[] }
   | { type: 'pong'; timestamp: number }
   | { type: 'error'; code: string; message: string };
