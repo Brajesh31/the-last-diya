@@ -9,6 +9,7 @@ import { createMemoryMarker, createMemorySequence } from './world/memory-sequenc
 import { applyNeighbourhoodLight, createNeighbourhoodState } from './world/neighbourhood-state';
 import { createAmbientAudio } from './world/ambient-audio';
 import { createEnvironmentStory } from './world/environment-story';
+import { createAtmosphereVfx } from './world/atmosphere-vfx';
 
 const root = document.getElementById('game')!;
 const scene = new THREE.Scene();
@@ -44,6 +45,7 @@ for (let i = -18; i <= 18; i += 6) for (const x of [-6, 6]) {
 const neighbourhood = createNeighbourhoodState(scene);
 const ambientAudio = createAmbientAudio();
 const environmentStory = createEnvironmentStory(scene);
+const atmosphereVfx = createAtmosphereVfx(scene);
 
 const diya = new THREE.Group();
 const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8b5a35, roughness: 0.8 }));
@@ -285,6 +287,7 @@ function update(now: number) {
   if (now - lastNetworkSend > 100 && !lockedByMemory) { send({ type: 'player_state', transform: playerTransform() }); lastNetworkSend = now; }
   for (const remoteEntry of remotePlayers.values()) { remoteEntry.mesh.position.lerp(remoteEntry.target, 0.18); remoteEntry.mesh.rotation.y = THREE.MathUtils.lerp(remoteEntry.mesh.rotation.y, remoteEntry.rotation, 0.18); }
   environmentStory.update(lightLevel, now / 1000);
+  atmosphereVfx.update(lightLevel, deltaSeconds, now / 1000);
   communityFlame.rotation.y += deltaSeconds * 1.5;
   communityFlame.scale.y = 2.2 + Math.sin(now / 120) * 0.25;
   memorySequence.update(deltaSeconds);
@@ -298,4 +301,4 @@ function update(now: number) {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 connect();
 renderer.setAnimationLoop(update);
-window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); ambientAudio.dispose(); });
+window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); ambientAudio.dispose(); });
