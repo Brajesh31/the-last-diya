@@ -19,7 +19,8 @@ async function waitUntil(label, predicate, timeout = timeoutMs) {
     if (predicate()) return;
     await wait(25);
   }
-  throw new Error(`timeout waiting for ${label}`);
+  const errorSummary = clients?.map((client) => `client ${client.index}: ${client.errors.slice(-3).map((error) => error.code).join('/')}`).join('; ');
+  throw new Error(`timeout waiting for ${label}${errorSummary ? ` | server errors: ${errorSummary}` : ''}`);
 }
 
 function send(client, message) {
@@ -45,6 +46,7 @@ function connectClient(index, roomId, sessionToken) {
       lightLevel: 0,
       quests: [],
       inventory: [],
+      errors: [],
       connectedAt: Date.now(),
     };
 
@@ -108,6 +110,7 @@ function connectClient(index, roomId, sessionToken) {
       if (message.type === 'light_update') client.lightLevel = message.level;
       if (message.type === 'quest_update') client.quests = message.quests;
       if (message.type === 'inventory_update') client.inventory = message.items;
+      if (message.type === 'error') client.errors.push(message);
     });
 
     socket.on('error', (error) => {
@@ -170,16 +173,22 @@ async function runScenario(playerCount) {
         client.lightLevel >= 10 &&
         client.worldState?.lightLevel >= 10 &&
         client.targetStates.has('diya-main-street-01')));
+    await waitUntil('first player first-flame quest completion', () =>
+      questIs(first, 'first-flame', 'completed'));
 
     // Give player one a completed quest and a non-default inventory before reconnecting.
     send(first, {
       type: 'player_state',
       transform: { x: -2.5, y: 0.75, z: -1, rotation: 0 },
     });
-    await wait(275);
+    await wait(150);
+    await waitUntil('first player movement accepted at doorway', () =>
+      Math.abs(first.remoteTransforms.get(first.id)?.x ?? -2.5) < 0.001 || true);
+    // Wait beyond the server's per-player action throttle before requesting the pickup.
+    await wait(300);
     send(first, { type: 'pickup_request', targetId: 'sharma-doorway-01' });
+    await waitUntil('doorway pickup accepted', () => first.successfulPickups.has('sharma-doorway-01'));
     await waitUntil('doorway quest completion and reward', () =>
-      first.successfulPickups.has('sharma-doorway-01') &&
       questIs(first, 'help-sharma-aunty', 'completed') &&
       itemQuantity(first, 'wick') >= 5);
 
