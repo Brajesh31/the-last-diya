@@ -73,9 +73,12 @@ try {
   const identities = await page.evaluate(() => {
     const state = window.__LAST_DIYA_E2E__?.getState();
     const canvas = document.querySelector('#game canvas');
-    return { playerId: state?.playerId, remotePlayerCount: state?.remotePlayerCount ?? -1, renderer: state?.rendererInfo ?? null, position: state?.position, webglAvailable: !!canvas && !!canvas.getContext('webgl2'), visibilityState: document.visibilityState };
+    return { playerId: state?.playerId, remotePlayerCount: state?.remotePlayerCount ?? -1, remoteAvatarLodEnabled: state?.remoteAvatarLodEnabled ?? false, renderer: state?.rendererInfo ?? null, position: state?.position, webglAvailable: !!canvas && !!canvas.getContext('webgl2'), visibilityState: document.visibilityState };
   });
-  await page.waitForFunction((expected) => window.__LAST_DIYA_E2E__?.getState().remotePlayerCount === expected, botCount, { timeout: startupTimeoutMs });
+  await page.waitForFunction((expected) => {
+    const state = window.__LAST_DIYA_E2E__?.getState();
+    return state?.remotePlayerCount === expected && state.remoteAvatarLodEnabled === (expected >= 8);
+  }, botCount, { timeout: startupTimeoutMs });
   if (!identities.playerId || peers.some((peer) => peer.id === identities.playerId)) throw new Error('Browser player identity collided with a simulated peer');
   if (!identities.webglAvailable) throw new Error('WebGL2 is not available in the measured browser');
   const allTransforms = [identities.position, ...peers.map((peer) => peer.transform)];
@@ -130,6 +133,7 @@ try {
     renderer: sample.renderer, jsHeapMb: sample.jsHeapMb, visibilityState: sample.visibilityState, timedOut: sample.timedOut,
     distinctSpawnPositions: spawnKeys.size,
   };
+  if (clientCount >= 20 && sample.renderer.calls > 500) throw new Error('Crowd LOD did not reduce renderer draw calls below 500: ' + sample.renderer.calls);
   console.log('BROWSER_PERF_RESULT ' + JSON.stringify(summary));
   console.log('PASS browser rendering benchmark | one WebGL canvas | ' + botCount + ' remote avatars | ' + sample.averageFps + ' FPS | p95 frame time ' + sample.p95FrameMs + 'ms');
 } catch (error) {

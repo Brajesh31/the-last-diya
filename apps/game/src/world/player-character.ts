@@ -55,7 +55,90 @@ function sphere(radius: number, color: number, segments = 12) {
   return new THREE.Mesh(new THREE.SphereGeometry(radius, segments, Math.max(8, segments - 2)), standard(color));
 }
 
-export function createPlayerCharacter(identity: string, local = false): PlayerCharacterVisual {
+function createLowDetailRemoteCharacter(identity: string, palette: CharacterPalette): PlayerCharacterVisual {
+  const group = new THREE.Group();
+  group.name = `player-character-${identity}-low-detail`;
+  const bodyMaterial = new THREE.MeshLambertMaterial({ color: palette.jacket, flatShading: true });
+  const skinMaterial = new THREE.MeshLambertMaterial({ color: palette.skin, flatShading: true });
+  const hairMaterial = new THREE.MeshLambertMaterial({ color: palette.hair, flatShading: true });
+  const packMaterial = new THREE.MeshLambertMaterial({ color: palette.backpack, flatShading: true });
+  const trimMaterial = new THREE.MeshLambertMaterial({ color: palette.trim, flatShading: true });
+  const legMaterial = new THREE.MeshLambertMaterial({ color: palette.trousers, flatShading: true });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.205, 0.40, 2, 6), bodyMaterial);
+  body.position.set(0, 0.10, 0);
+  group.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.145, 8, 6), skinMaterial);
+  head.position.set(0, 0.55, 0.02);
+  group.add(head);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.148, 8, 5), hairMaterial);
+  hair.scale.set(1.02, 0.55, 0.98);
+  hair.position.set(0, 0.62, -0.005);
+  group.add(hair);
+  const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.13), packMaterial);
+  backpack.position.set(0, 0.04, -0.19);
+  group.add(backpack);
+  const armPivots: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.225, 0.22, 0);
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.28, 2, 5), side === 1 ? trimMaterial : bodyMaterial);
+    arm.position.y = -0.145;
+    pivot.add(arm);
+    group.add(pivot);
+    armPivots.push(pivot);
+  }
+  const legPivots: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.095, -0.25, 0);
+    const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.28, 2, 5), legMaterial);
+    leg.position.y = -0.20;
+    pivot.add(leg);
+    group.add(pivot);
+    legPivots.push(pivot);
+  }
+  const flame = new THREE.Mesh(
+    new THREE.SphereGeometry(0.045, 6, 5),
+    new THREE.MeshBasicMaterial({ color: 0xffc857 }),
+  );
+  flame.position.set(0.30, -0.16, 0.08);
+  group.add(flame);
+  // Crowd LOD deliberately avoids per-avatar point lights and shadow-map passes.
+  group.traverse((object) => {
+    if (object instanceof THREE.Mesh) {
+      object.castShadow = false;
+      object.receiveShadow = false;
+    }
+  });
+  const update = (lightLevel: number, elapsedSeconds: number, deltaSeconds: number, moving: boolean) => {
+    const gait = moving ? Math.sin(elapsedSeconds * 9.5) : 0;
+    body.rotation.z = moving ? Math.sin(elapsedSeconds * 9.5) * 0.025 : 0;
+    head.rotation.y = Math.sin(elapsedSeconds * 0.65) * 0.025;
+    armPivots[0].rotation.x = gait * 0.30;
+    armPivots[1].rotation.x = gait * 0.07;
+    legPivots[0].rotation.x = gait * 0.5;
+    legPivots[1].rotation.x = -gait * 0.5;
+    flame.visible = lightLevel > 0;
+    void deltaSeconds;
+  };
+  return {
+    group,
+    update,
+    dispose() {
+      group.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) {
+          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          for (const material of materials) material.dispose();
+        }
+      });
+    },
+  };
+}
+export function createPlayerCharacter(identity: string, local = false, lowDetailRemote = false): PlayerCharacterVisual {
+  const palette = paletteFor(identity, local);
+  if (!local && lowDetailRemote) return createLowDetailRemoteCharacter(identity, palette);
   const palette = paletteFor(identity, local);
   const group = new THREE.Group();
   group.name = local ? 'player-character-local' : `player-character-${identity}`;

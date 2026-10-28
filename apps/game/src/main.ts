@@ -87,7 +87,29 @@ const player = playerCharacter.group;
 player.position.set(0, 0.75, 4);
 scene.add(player);
 const remotePlayers = new Map<PlayerId, { mesh: THREE.Group; visual: PlayerCharacterVisual; target: THREE.Vector3; rotation: number }>();
-function makeRemotePlayer(id: PlayerId) { return createPlayerCharacter(id, false); }
+const REMOTE_AVATAR_LOD_ENABLE_AT = 8;
+const REMOTE_AVATAR_LOD_DISABLE_AT = 5;
+let remoteAvatarLodEnabled = false;
+function makeRemotePlayer(id: PlayerId, lowDetail = remoteAvatarLodEnabled) { return createPlayerCharacter(id, false, lowDetail); }
+function setRemoteAvatarDetailMode(lowDetail: boolean) {
+  if (remoteAvatarLodEnabled === lowDetail) return;
+  remoteAvatarLodEnabled = lowDetail;
+  for (const [id, remote] of remotePlayers) {
+    const visual = makeRemotePlayer(id, lowDetail);
+    const mesh = visual.group;
+    mesh.position.copy(remote.mesh.position);
+    mesh.rotation.y = remote.mesh.rotation.y;
+    scene.remove(remote.mesh);
+    remote.visual.dispose();
+    scene.add(mesh);
+    remote.mesh = mesh;
+    remote.visual = visual;
+  }
+}
+function updateRemoteAvatarDetailMode() {
+  if (!remoteAvatarLodEnabled && remotePlayers.size >= REMOTE_AVATAR_LOD_ENABLE_AT) setRemoteAvatarDetailMode(true);
+  else if (remoteAvatarLodEnabled && remotePlayers.size <= REMOTE_AVATAR_LOD_DISABLE_AT) setRemoteAvatarDetailMode(false);
+}
 
 const npcCharacters = NPCS.map((npc) => createNPCCharacter(npc));
 const npcGroups = NPCS.map((npc, index) => {
@@ -208,6 +230,7 @@ function clearRemotePlayers() {
     remote.visual.dispose();
   }
   remotePlayers.clear();
+  remoteAvatarLodEnabled = false;
 }
 function addRemotePlayer(id: PlayerId, transform: PlayerTransform) {
   if (id === currentPlayerId || remotePlayers.has(id)) return;
@@ -217,6 +240,7 @@ function addRemotePlayer(id: PlayerId, transform: PlayerTransform) {
   mesh.rotation.y = transform.rotation;
   scene.add(mesh);
   remotePlayers.set(id, { mesh, visual, target: new THREE.Vector3(transform.x, transform.y, transform.z), rotation: transform.rotation });
+  updateRemoteAvatarDetailMode();
 }
 function applyWorldState(level: number, unlocked: string[]) {
   setLightLevel(level);
@@ -255,7 +279,7 @@ function handleServerMessage(message: ServerMessage) {
   }
   if (message.type === 'player_spawned') { addRemotePlayer(message.playerId, message.transform); return; }
   if (message.type === 'player_state') { const remote = remotePlayers.get(message.playerId); if (remote) { remote.target.set(message.transform.x, message.transform.y, message.transform.z); remote.rotation = message.transform.rotation; } return; }
-  if (message.type === 'player_left') { const remote = remotePlayers.get(message.playerId); if (remote) { scene.remove(remote.mesh); remote.visual.dispose(); remotePlayers.delete(message.playerId); } return; }
+  if (message.type === 'player_left') { const remote = remotePlayers.get(message.playerId); if (remote) { scene.remove(remote.mesh); remote.visual.dispose(); remotePlayers.delete(message.playerId); updateRemoteAvatarDetailMode(); } return; }
   if (message.type === 'light_update') { setLightLevel(message.level); return; }
   if (message.type === 'target_state') { if (message.targetId === 'diya-main-street-01') setMainDiyaLit(message.active); return; }
   if (message.type === 'interaction_result' && message.success) {
@@ -340,6 +364,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         quests: QuestState[];
         inventory: InventoryItemState[];
         remotePlayerCount: number;
+        remoteAvatarLodEnabled: boolean;
         rendererInfo: { calls: number; triangles: number; geometries: number; textures: number };
       };
     };
@@ -375,6 +400,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         quests: quests.map((quest) => ({ ...quest })),
         inventory: inventory.map((item) => ({ ...item })),
         remotePlayerCount: remotePlayers.size,
+        remoteAvatarLodEnabled,
         rendererInfo: {
           calls: renderer.info.render.calls,
           triangles: renderer.info.render.triangles,
