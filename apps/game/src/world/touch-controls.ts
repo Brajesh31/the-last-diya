@@ -2,7 +2,7 @@ export interface TouchControlsHandle {
   dispose(): void;
 }
 
-const TOUCH_CONTROLS_CSS = \`
+const TOUCH_CONTROLS_CSS = `
 .touch-controls{position:fixed;inset:0;z-index:60;pointer-events:none;user-select:none;-webkit-user-select:none}
 .touch-dpad{position:absolute;left:calc(14px + env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,56px);gap:7px;pointer-events:none}
 .touch-control{width:56px;height:56px;display:grid;place-items:center;border:1px solid #696458;border-radius:17px;background:rgba(15,16,14,.82);color:#f4f0e8;font:600 23px/1 system-ui,sans-serif;box-shadow:0 3px 12px #0006;touch-action:none;pointer-events:auto;-webkit-tap-highlight-color:transparent}
@@ -12,7 +12,7 @@ const TOUCH_CONTROLS_CSS = \`
 .touch-interact span{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 .touch-interact:active{background:#e0aa54;transform:scale(.96)}
 body.has-touch-controls .dialogue-panel{bottom:calc(122px + env(safe-area-inset-bottom,0px))!important;z-index:70}
-\`;
+`;
 
 const DIRECTIONS = [
   { selector: '.touch-up', key: 'w', label: 'Move forward' },
@@ -32,7 +32,7 @@ export function installTouchControls(
   root.className = 'touch-controls';
   root.setAttribute('role', 'group');
   root.setAttribute('aria-label', 'Touch game controls');
-  root.innerHTML = \`
+  root.innerHTML = `
     <div class="touch-dpad" role="group" aria-label="Movement">
       <button type="button" class="touch-control touch-up" aria-label="Move forward">▲</button>
       <button type="button" class="touch-control touch-left" aria-label="Move left">◀</button>
@@ -42,7 +42,7 @@ export function installTouchControls(
     <button type="button" class="touch-interact" aria-label="Interact">
       E<span>Interact</span>
     </button>
-  \`;
+  `;
 
   const style = document.createElement('style');
   style.dataset.touchControlsStyle = 'true';
