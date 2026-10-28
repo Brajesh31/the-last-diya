@@ -13,14 +13,14 @@ if (!requestedCounts.length || requestedCounts.some((count) => !Number.isInteger
   throw new Error('LOAD_COUNTS must contain integers between 2 and 10');
 }
 
-async function waitUntil(label, predicate, timeout = timeoutMs) {
+async function waitUntil(label, predicate, timeout = timeoutMs, diagnostics = () => '') {
   const started = Date.now();
   while (Date.now() - started < timeout) {
     if (predicate()) return;
     await wait(25);
   }
-  const errorSummary = clients?.map((client) => `client ${client.index}: ${client.errors.slice(-3).map((error) => error.code).join('/')}`).join('; ');
-  throw new Error(`timeout waiting for ${label}${errorSummary ? ` | server errors: ${errorSummary}` : ''}`);
+  const details = diagnostics();
+  throw new Error(`timeout waiting for ${label}${details ? ` | ${details}` : ''}`);
 }
 
 function send(client, message) {
@@ -186,9 +186,12 @@ async function runScenario(playerCount) {
     await wait(300);
     send(first, { type: 'pickup_request', targetId: 'sharma-doorway-01' });
     await waitUntil('doorway pickup accepted', () => first.successfulPickups.has('sharma-doorway-01'));
-    await waitUntil('doorway quest completion and reward', () =>
-      questIs(first, 'help-sharma-aunty', 'completed') &&
-      itemQuantity(first, 'wick') >= 5);
+    await waitUntil(
+      'doorway quest completion and reward',
+      () => questIs(first, 'help-sharma-aunty', 'completed') && itemQuantity(first, 'wick') >= 5,
+      timeoutMs,
+      () => JSON.stringify({ quests: first.quests, inventory: first.inventory, errors: first.errors.slice(-5) }),
+    );
 
     const originalId = first.id;
     const token = first.sessionToken;
