@@ -64,6 +64,9 @@ try {
   // Keep every client connected, but sample one foreground page at a time. Chromium throttles background tabs.
   const metrics = [];
   for (const [index, page] of pages.entries()) {
+    await Promise.all(pages.map((candidate, candidateIndex) => candidate.evaluate((enabled) => {
+      window.__LAST_DIYA_E2E__?.setRenderLoopEnabled(enabled);
+    }, candidateIndex === index)));
     await page.bringToFront();
     await page.keyboard.down('w');
     try {

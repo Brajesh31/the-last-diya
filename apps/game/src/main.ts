@@ -333,6 +333,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
     __LAST_DIYA_E2E__?: {
       moveTo: (x: number, z: number) => Promise<void>;
       interact: () => void;
+      setRenderLoopEnabled: (enabled: boolean) => void;
       getState: () => {
         playerId: PlayerId | null;
         position: PlayerTransform;
@@ -345,6 +346,9 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
     };
   };
   testWindow.__LAST_DIYA_E2E__ = {
+    setRenderLoopEnabled(enabled) {
+      renderer.setAnimationLoop(enabled ? update : null);
+    },
     async moveTo(x, z) {
       if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error('Test position must be finite');
       const startX = player.position.x;
