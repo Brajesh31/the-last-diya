@@ -116,6 +116,7 @@
 - [x] Room isolation tests verify player snapshots and shared diya state stay within each room
 - [x] Server movement speed/bounds validation and room isolation tests pass
 - [x] Server rejects movement through benches, market stalls and the temple platform
+- [x] Automated 30-client movement broadcast latency benchmark with server CPU, memory and event-loop telemetry
 - [ ] Performance profiling
 - [ ] Server and networking security validation
 - [ ] Monitoring and error reporting
@@ -139,4 +140,4 @@
 Two browser windows join the same world. One player lights a diya, the other sees the change, and the shared Light Level updates. The street brightens, NPCs react, players can share flame and collect quest items, the Dark District unlocks at 90%, and both players can reach the final event.
 
 ### Validation note
-The character and environment systems are implemented as procedural prototypes. Workspace type-check/build, two-player cooperative smoke tests, collision tests, the five-quest chain, two-client Chromium checks for shared diya/personal quest rewards, server movement speed/bounds/prop-collision validation, room isolation, and 2 / 5 / 10-player load tests pass in GitHub Actions. Load tests also cover reconnect recovery for quest progress, inventory, personal pickups and shared world state. The 2 / 5 / 10 / 20 / 30-player server load tests pass in GitHub Actions, and the room rejects a 31st player at capacity. These are simulated WebSocket/server tests, not a 30-browser rendering benchmark. A manual visual playtest through the full five-quest chain in separate interactive browser windows and final-art replacement remain outstanding.
+The character and environment systems are implemented as procedural prototypes. Workspace type-check/build, two-player cooperative smoke tests, collision tests, the five-quest chain, two-client Chromium checks for shared diya/personal quest rewards, server movement speed/bounds/prop-collision validation, room isolation, and 2 / 5 / 10-player load tests pass in GitHub Actions. Load tests also cover reconnect recovery for quest progress, inventory, personal pickups and shared world state. The 2 / 5 / 10 / 20 / 30-player server load tests pass in GitHub Actions, and the room rejects a 31st player at capacity. An opt-in 30-client concurrent movement benchmark records broadcast-latency percentiles and server CPU, memory and event-loop-delay telemetry. These are simulated WebSocket/server tests, not a 30-browser rendering benchmark. A manual visual playtest through the full five-quest chain in separate interactive browser windows and final-art replacement remain outstanding.

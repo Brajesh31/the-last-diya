@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { WebSocketServer, WebSocket } from 'ws';
 import { DARK_DISTRICT_UNLOCK_LEVEL, DEFAULT_ROOM_CAPACITY, FINAL_EVENT_LEVEL, LIGHT_LEVEL_START, MAX_LIGHT_LEVEL } from '@the-last-diya/shared';
 import type { ClientMessage, InventoryItemState, ItemId, MemorySequenceState, PlayerTransform, QuestState, ServerMessage, WorldEventState } from '@the-last-diya/shared';
@@ -276,5 +277,37 @@ wss.on('connection', (socket) => {
   socket.on('error', () => socket.close());
 });
 const heartbeat = setInterval(() => { const now = Date.now(); for (const [token, session] of sessions) if (session.expiresAt < now) sessions.delete(token); for (const player of players.values()) { if (now - player.lastPongAt > HEARTBEAT_TIMEOUT_MS) { player.socket.terminate(); continue; } try { player.socket.ping(); } catch { player.socket.terminate(); } } }, HEARTBEAT_INTERVAL_MS);
-process.on('SIGTERM', () => { clearInterval(heartbeat); http.close(); });
-http.listen(port, () => console.log(`The Last Diya server listening on :${port}`));
+
+// Opt-in profiling for CI. This logs metrics without exposing a public metrics endpoint.
+let performanceMetricsTimer: NodeJS.Timeout | undefined;
+let performanceEventLoopDelay: ReturnType<typeof monitorEventLoopDelay> | undefined;
+if (process.env.PERF_METRICS === '1') {
+  const eventLoopDelay = monitorEventLoopDelay({ resolution: 10 });
+  performanceEventLoopDelay = eventLoopDelay;
+  eventLoopDelay.enable();
+  let previousCpuUsage = process.cpuUsage();
+  performanceMetricsTimer = setInterval(() => {
+    const cpu = process.cpuUsage(previousCpuUsage);
+    previousCpuUsage = process.cpuUsage();
+    const memory = process.memoryUsage();
+    const metrics = {
+      connectedClients: players.size,
+      eventLoopP95Ms: Number((eventLoopDelay.percentile(95) / 1e6).toFixed(2)),
+      eventLoopMaxMs: Number((eventLoopDelay.max / 1e6).toFixed(2)),
+      cpuUserMs: Math.round(cpu.user / 1000),
+      cpuSystemMs: Math.round(cpu.system / 1000),
+      rssMb: Number((memory.rss / 1024 / 1024).toFixed(1)),
+      heapUsedMb: Number((memory.heapUsed / 1024 / 1024).toFixed(1)),
+    };
+    console.log('PERF_METRICS ' + JSON.stringify(metrics));
+    eventLoopDelay.reset();
+  }, 1000);
+  performanceMetricsTimer.unref();
+}
+process.on('SIGTERM', () => {
+  clearInterval(heartbeat);
+  if (performanceMetricsTimer) clearInterval(performanceMetricsTimer);
+  performanceEventLoopDelay?.disable();
+  http.close();
+});
+http.listen(port, () => console.log('The Last Diya server listening on :' + port));
