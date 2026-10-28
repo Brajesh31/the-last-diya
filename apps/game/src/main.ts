@@ -103,19 +103,31 @@ const npcContextDialogue: Record<string, { threshold: number; text: string }> = 
   'unknown-stranger': { threshold: 85, text: 'The last district is opening. Some memories return only when the light is shared.' },
 };
 
-const pickupDefinitions = [
+interface PickupDefinition {
+  id: string;
+  x: number;
+  z: number;
+  label: string;
+}
+interface PickupEntry {
+  definition: PickupDefinition;
+  mesh: THREE.Mesh;
+  collected: boolean;
+}
+const pickupDefinitions: PickupDefinition[] = [
   { id: 'sharma-doorway-01', x: -2.5, z: -1, label: '2 wicks' },
   { id: 'market-stall-01', x: 2.5, z: -8, label: 'diya' },
   { id: 'market-stall-02', x: -2.5, z: -9.5, label: 'diya' },
   { id: 'market-stall-03', x: 2.5, z: -11, label: 'diya' },
   { id: 'temple-memory-01', x: 2.5, z: -17, label: 'memory fragment' },
 ];
-const pickups = new Map(pickupDefinitions.map((definition) => {
+const pickups = new Map<string, PickupEntry>();
+for (const definition of pickupDefinitions) {
   const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.22), new THREE.MeshStandardMaterial({ color: 0xd5a85f, emissive: 0x5a3512, emissiveIntensity: 0.8 }));
   mesh.position.set(definition.x, 0.35, definition.z);
   scene.add(mesh);
-  return [definition.id, { definition, mesh, collected: false }] as const;
-}));
+  pickups.set(definition.id, { definition, mesh, collected: false });
+}
 const memoryMarker = createMemoryMarker(scene, new THREE.Vector3(2.5, 0.9, -17));
 const darkGate = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 0.4), new THREE.MeshStandardMaterial({ color: 0x17130f, emissive: 0x24160a, emissiveIntensity: 0.5 }));
 darkGate.position.set(0, 2, -19.5);
@@ -161,7 +173,7 @@ function setLightLevel(value: number) {
   document.getElementById('light')!.textContent = `LIGHT ${lightLevel}%`;
   const ambience = applyNeighbourhoodLight(neighbourhood, lightLevel);
   hemi.intensity = 0.45 + ambience.targetExposure * 0.25;
-  scene.background.set(lightLevel > 0 ? 0x15110b : 0x080a0a);
+  scene.background = new THREE.Color(lightLevel > 0 ? 0x15110b : 0x080a0a);
   scene.fog = new THREE.Fog(lightLevel > 0 ? 0x15110b : 0x080a0a, 20 - ambience.street * 2, 60 + ambience.homes * 15);
   diyaLight.intensity = 1.8 + lightLevel / 20;
   const targetDark = lightLevel >= DARK_DISTRICT_UNLOCK_LEVEL;
