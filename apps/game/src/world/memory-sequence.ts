@@ -13,7 +13,7 @@ export function createMemorySequence(): MemorySequence {
   overlay.hidden = true;
   overlay.innerHTML = '<div class="memory-card"><span>MEMORY</span><h2>The light was never ours alone.</h2><p>Doorways glowed. Children carried sweets. Neighbours greeted one another. One flame became another.</p><small>Press E to continue</small></div>';
   Object.assign(overlay.style, {
-    position: 'fixed', inset: '0', display: 'grid', placeItems: 'center',
+    position: 'fixed', inset: '0', display: 'none', placeItems: 'center',
     background: 'rgba(5, 5, 4, 0.82)', zIndex: '50', color: '#f4f0e8',
     fontFamily: 'system-ui, sans-serif', textAlign: 'center', padding: '24px',
   });
@@ -22,8 +22,8 @@ export function createMemorySequence(): MemorySequence {
   let open = false;
   let elapsed = 0;
   return {
-    open() { open = true; elapsed = 0; overlay.hidden = false; },
-    close() { open = false; overlay.hidden = true; },
+    open() { open = true; elapsed = 0; overlay.hidden = false; overlay.style.display = 'grid'; },
+    close() { open = false; overlay.hidden = true; overlay.style.display = 'none'; },
     update(deltaSeconds) {
       if (!open) return;
       elapsed += deltaSeconds;
