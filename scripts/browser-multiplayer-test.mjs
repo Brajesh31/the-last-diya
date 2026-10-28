@@ -65,6 +65,7 @@ try {
 
   await Promise.all(pages.map((page) => page.waitForFunction(
     () => document.querySelector('#connection')?.textContent === 'ONLINE',
+    undefined,
     { timeout: timeoutMs },
   )));
   await Promise.all(pages.map((page) => waitForText(page, '#quest-items', 'first flame', 'initial personal quest')));
@@ -73,6 +74,7 @@ try {
   await walkToDiya(pages[0], true);
   await Promise.all(pages.map((page) => page.waitForFunction(
     () => document.querySelector('.light-readout #light')?.textContent?.trim() === 'LIGHT 10%',
+    undefined,
     { timeout: timeoutMs },
   )));
   await waitForText(pages[0], '#quest-items', 'help sharma aunty', 'first player quest advancement');
@@ -89,6 +91,7 @@ try {
   await waitForText(pages[0], '#inventory-items', 'wick', 'player one inventory reward');
   await pages[0].waitForFunction(
     () => /Wick\s*<b>5<\/b>/i.test(document.querySelector('#inventory-items')?.innerHTML ?? ''),
+    undefined,
     { timeout: timeoutMs },
   );
   console.log('PASS: player one collected the doorway pickup, received quest reward and advanced to market lights');
@@ -97,6 +100,7 @@ try {
   await waitForText(pages[1], '#quest-items', 'market lights', 'player two doorway quest reward');
   await pages[1].waitForFunction(
     () => /Wick\s*<b>5<\/b>/i.test(document.querySelector('#inventory-items')?.innerHTML ?? ''),
+    undefined,
     { timeout: timeoutMs },
   );
   console.log('PASS: player two independently collected the same personal pickup and received their own reward');
