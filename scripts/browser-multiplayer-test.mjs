@@ -26,6 +26,7 @@ async function holdKeys(page, keys, durationMs) {
 }
 
 async function walkToDiya(page, needsPrompt) {
+  await page.bringToFront();
   await page.locator('#game canvas').click({ position: { x: 20, y: 20 } });
   await holdKeys(page, ['w'], 1400);
   if (needsPrompt) {
@@ -35,6 +36,7 @@ async function walkToDiya(page, needsPrompt) {
 }
 
 async function walkToDoorway(page) {
+  await page.bringToFront();
   await holdKeys(page, ['a', 's'], 600);
   await waitForText(page, '.prompt', 'Press E to collect 2 wicks', 'doorway pickup prompt');
   await page.keyboard.press('e');
