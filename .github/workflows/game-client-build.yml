@@ -10,12 +10,9 @@ on:
       - ".github/workflows/game-client-build.yml"
   pull_request:
     paths:
-      - "apps/game/**"
-      - "packages/game-core/**"
-      - "packages/shared/**"
-      - "packages/networking/**"
+      - "apps/**"
+      - "packages/**"
       - "package.json"
-      - "package-lock.json"
       - ".github/workflows/game-client-build.yml"
   workflow_dispatch:
 
