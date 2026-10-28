@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "description": "The Last Diya, a cooperative multiplayer web adventure.",
   "packageManager": "npm@11.6.2",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev -ws --if-present",
     "build": "npm run build -ws --if-present",
@@ -12,6 +15,7 @@
     "test": "npm run test -ws --if-present",
     "test:multiplayer": "node scripts/multiplayer-smoke-test.mjs",
     "test:multiplayer:load": "node scripts/multiplayer-load-test.mjs",
-    "test:vertical-slice": "node scripts/vertical-slice-quest-test.mjs"
+    "test:vertical-slice": "node scripts/vertical-slice-quest-test.mjs",
+    "test:collision": "node --import tsx scripts/player-collision-test.mjs"
   }
 }
