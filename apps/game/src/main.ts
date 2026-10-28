@@ -56,13 +56,14 @@ const diya = new THREE.Group();
 const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8b5a35, roughness: 0.8 }));
 bowl.scale.y = 0.35;
 diya.add(bowl);
-const flame = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), new THREE.MeshBasicMaterial({ color: 0xffc857 }));
+const mainFlameMaterial = new THREE.MeshBasicMaterial({ color: 0xffc857, transparent: true, opacity: 0 });
+const flame = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), mainFlameMaterial);
 flame.scale.set(0.7, 1.8, 0.7);
 flame.position.y = 0.22;
 diya.add(flame);
 diya.position.set(0, 0.3, -4);
 scene.add(diya);
-const diyaLight = new THREE.PointLight(0xffb84d, 1.8, 8);
+const diyaLight = new THREE.PointLight(0xffb84d, 0, 8);
 diyaLight.position.copy(diya.position).add(new THREE.Vector3(0, 1, 0));
 scene.add(diyaLight);
 
@@ -172,6 +173,11 @@ let darkDistrictUnlocked = false;
 let finalEventActive = false;
 let sessionToken = localStorage.getItem('the-last-diya-session') ?? undefined;
 
+function setMainDiyaLit(active: boolean) {
+  litLocally = active;
+  mainFlameMaterial.opacity = active ? 1 : 0;
+  diyaLight.intensity = active ? 1.8 + lightLevel / 20 : 0;
+}
 function setLightLevel(value: number) {
   lightLevel = clampLightLevel(value);
   ambientAudio.setLightLevel(lightLevel);
@@ -190,7 +196,7 @@ function setLightLevel(value: number) {
   hemi.intensity = 0.45 + ambience.targetExposure * 0.25;
   scene.background = new THREE.Color(lightLevel > 0 ? 0x15110b : 0x080a0a);
   scene.fog = new THREE.Fog(lightLevel > 0 ? 0x15110b : 0x080a0a, 20 - ambience.street * 2, 60 + ambience.homes * 15);
-  diyaLight.intensity = 1.8 + lightLevel / 20;
+  diyaLight.intensity = litLocally ? 1.8 + lightLevel / 20 : 0;
   const targetDark = lightLevel >= DARK_DISTRICT_UNLOCK_LEVEL;
   if (targetDark && !darkDistrictUnlocked) prompt.textContent = 'The Dark District is awake. The final path has opened.';
 }
@@ -238,8 +244,8 @@ function handleServerMessage(message: ServerMessage) {
   }
   if (message.type === 'room_snapshot') {
     clearRemotePlayers();
+    setMainDiyaLit(message.litTargets.includes('diya-main-street-01'));
     applyWorldState(message.lightLevel, message.unlockedDistricts);
-    litLocally = message.litTargets.includes('diya-main-street-01');
     for (const entry of message.players) addRemotePlayer(entry.playerId, entry.transform);
     for (const [id, pickup] of pickups) { pickup.collected = message.pickedTargets.includes(id); pickup.mesh.visible = !pickup.collected; }
     if (message.memory?.active) memorySequence.open();
@@ -250,9 +256,9 @@ function handleServerMessage(message: ServerMessage) {
   if (message.type === 'player_state') { const remote = remotePlayers.get(message.playerId); if (remote) { remote.target.set(message.transform.x, message.transform.y, message.transform.z); remote.rotation = message.transform.rotation; } return; }
   if (message.type === 'player_left') { const remote = remotePlayers.get(message.playerId); if (remote) { scene.remove(remote.mesh); remote.visual.dispose(); remotePlayers.delete(message.playerId); } return; }
   if (message.type === 'light_update') { setLightLevel(message.level); return; }
-  if (message.type === 'target_state') { if (message.targetId === 'diya-main-street-01') litLocally = message.active; return; }
+  if (message.type === 'target_state') { if (message.targetId === 'diya-main-street-01') setMainDiyaLit(message.active); return; }
   if (message.type === 'interaction_result' && message.success) {
-    if (message.targetId === 'diya-main-street-01') { litLocally = true; prompt.textContent = 'Diya lit · Shared Light Level +10%'; }
+    if (message.targetId === 'diya-main-street-01') { setMainDiyaLit(true); prompt.textContent = 'Diya lit · Shared Light Level +10%'; }
     if (message.targetId === 'community-diya-01') prompt.textContent = 'The last diya is lit. The neighbourhood remembers.';
     setLightLevel(message.lightLevel);
     return;
