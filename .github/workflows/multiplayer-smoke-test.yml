@@ -1,0 +1,56 @@
+name: Multiplayer Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      players:
+        description: Number of simulated players
+        required: false
+        default: '2'
+  push:
+    paths:
+      - 'apps/server/**'
+      - 'packages/shared/**'
+      - 'packages/game-core/**'
+      - 'packages/networking/**'
+      - 'scripts/multiplayer-smoke-test.mjs'
+      - '.github/workflows/multiplayer-smoke-test.yml'
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build workspaces
+        run: npm run build
+
+      - name: Start game server
+        run: node apps/server/dist/index.js > server.log 2>&1 &
+
+      - name: Wait for server
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8787/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat server.log
+          exit 1
+
+      - name: Run 2-player smoke test
+        run: PLAYERS=${{ inputs.players || '2' }} node scripts/multiplayer-smoke-test.mjs
+
+      - name: Server log
+        if: always()
+        run: cat server.log
