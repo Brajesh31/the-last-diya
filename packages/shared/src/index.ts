@@ -6,7 +6,6 @@ export const DEFAULT_ROOM_CAPACITY = 10;
 export type PlayerId = string;
 export type RoomId = string;
 export type ItemId = 'diya' | 'oil' | 'wick' | 'flower' | 'sweet' | 'memory_fragment';
-
 export interface PlayerTransform { x: number; y: number; z: number; rotation: number; }
 export interface InventoryItemState { id: ItemId; quantity: number; }
 export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya';
@@ -15,7 +14,7 @@ export interface QuestState { id: QuestId; status: QuestStatus; progress: number
 export interface RoomPlayerSnapshot { playerId: PlayerId; transform: PlayerTransform; }
 
 export type ClientMessage =
-  | { type: 'hello'; clientVersion: string }
+  | { type: 'hello'; clientVersion: string; sessionToken?: string }
   | { type: 'join_room'; roomId: RoomId }
   | { type: 'player_state'; transform: PlayerTransform }
   | { type: 'interact_request'; targetId: string }
@@ -35,5 +34,6 @@ export type ServerMessage =
   | { type: 'pickup_result'; success: boolean; targetId: string; itemId: ItemId; quantity: number }
   | { type: 'world_state'; lightLevel: number; unlockedDistricts: string[] }
   | { type: 'room_snapshot'; roomId: RoomId; players: RoomPlayerSnapshot[]; lightLevel: number; unlockedDistricts: string[]; pickedTargets: string[] }
+  | { type: 'session_assigned'; sessionToken: string; playerId: PlayerId }
   | { type: 'pong'; timestamp: number }
   | { type: 'error'; code: string; message: string };
