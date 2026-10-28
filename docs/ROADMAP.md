@@ -7,7 +7,7 @@
 - MVP scope
 - Asset and cultural direction
 
-## Phase 1 · Technical Prototype — In progress
+## Phase 1 · Technical Prototype — Complete
 - [x] npm workspace monorepo
 - [x] React + Vite web shell
 - [x] Three.js game client
@@ -24,17 +24,19 @@
 - [x] Server-authoritative diya interaction
 - [x] Server-side interaction distance validation
 - [x] Shared Light Level synchronization
-- [ ] Reconnect state restoration
-- [ ] Automated multiplayer smoke test
 
-## Phase 2 · Core Gameplay
-- Inventory
-- Items and collection
-- NPC dialogue
-- Quest system
-- Flame sharing
-- Shared Light Level
-- World progression states
+## Phase 2 · Core Gameplay — In progress
+- [x] Inventory primitives
+- [x] Item definitions
+- [x] NPC definitions and dialogue data
+- [x] Quest definitions and state model
+- [ ] Inventory UI
+- [ ] Item pickup interactions
+- [ ] NPC interaction system
+- [ ] Dialogue UI
+- [ ] Quest UI and progression
+- [ ] Flame sharing
+- [ ] Shared world progression states
 
 ## Phase 3 · Multiplayer Prototype
 - Room lifecycle
