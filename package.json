@@ -10,6 +10,7 @@
     "build": "npm run build -ws --if-present",
     "typecheck": "npm run typecheck -ws --if-present",
     "test": "npm run test -ws --if-present",
-    "test:multiplayer": "node scripts/multiplayer-smoke-test.mjs"
+    "test:multiplayer": "node scripts/multiplayer-smoke-test.mjs",
+    "test:multiplayer:load": "node scripts/multiplayer-load-test.mjs"
   }
 }
