@@ -365,6 +365,9 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         quests: QuestState[];
         inventory: InventoryItemState[];
         remotePlayerCount: number;
+        remotePlayers: Array<{ id: string; position: { x: number; y: number; z: number }; target: { x: number; y: number; z: number } }>;
+        promptText: string;
+        memoryOpen: boolean;
         remoteAvatarLodEnabled: boolean;
         rendererInfo: { calls: number; triangles: number; geometries: number; textures: number };
       };
@@ -402,6 +405,13 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         quests: quests.map((quest) => ({ ...quest })),
         inventory: inventory.map((item) => ({ ...item })),
         remotePlayerCount: remotePlayers.size,
+        remotePlayers: [...remotePlayers.entries()].map(([id, remote]) => ({
+          id,
+          position: { x: remote.mesh.position.x, y: remote.mesh.position.y, z: remote.mesh.position.z },
+          target: { x: remote.target.x, y: remote.target.y, z: remote.target.z },
+        })),
+        promptText: prompt.textContent ?? '',
+        memoryOpen: memorySequence.isOpen(),
         remoteAvatarLodEnabled,
         rendererInfo: {
           calls: renderer.info.render.calls,

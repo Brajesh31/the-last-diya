@@ -140,16 +140,49 @@ try {
   // and respecting the server's per-player action throttle.
   await moveTo(pages[0], 0, -1);
   await moveTo(pages[1], 0, -1);
-  await pages[0].waitForTimeout(500);
+  await pages[0].waitForTimeout(750);
+  const sharingDiagnostics = async () => Promise.all(pages.map((page) =>
+    page.evaluate(() => {
+      const state = window.__LAST_DIYA_E2E__?.getState();
+      return state ? {
+        playerId: state.playerId,
+        position: state.position,
+        remotePlayers: state.remotePlayers,
+        remotePlayerCount: state.remotePlayerCount,
+        memoryOpen: state.memoryOpen,
+        promptText: state.promptText,
+        lightLevel: state.lightLevel,
+      } : null;
+    })
+  ));
+  const sharingReadyUntil = Date.now() + 5000;
+  let sharingReady = false;
+  let sharingState = await sharingDiagnostics();
+  while (Date.now() < sharingReadyUntil) {
+    sharingState = await sharingDiagnostics();
+    sharingReady = sharingState.every((state) => state &&
+      state.remotePlayers.some((remote) =>
+        Math.hypot(remote.position.x - state.position.x, remote.position.z - state.position.z) < 2.5) &&
+      state.promptText.toLowerCase().includes('share your flame') &&
+      !state.memoryOpen);
+    if (sharingReady) break;
+    await pages[0].waitForTimeout(100);
+  }
+  if (!sharingReady) throw new Error('Flame sharing precondition failed: ' + JSON.stringify(sharingState));
+
   for (let targetLevel = 15, step = 0; targetLevel <= 100; targetLevel += 5, step += 1) {
     const page = step % 2 === 0 ? pages[0] : pages[1];
     await page.waitForTimeout(280);
     await interact(page);
-    await Promise.all(pages.map((clientPage) => clientPage.waitForFunction(
-      (expectedLevel) => document.querySelector('.light-readout #light')?.textContent?.trim() === 'LIGHT ' + expectedLevel + '%',
-      targetLevel,
-      { timeout: timeoutMs },
-    )));
+    try {
+      await Promise.all(pages.map((clientPage) => clientPage.waitForFunction(
+        (expectedLevel) => document.querySelector('.light-readout #light')?.textContent?.trim() === 'LIGHT ' + expectedLevel + '%',
+        targetLevel,
+        { timeout: 5000 },
+      )));
+    } catch {
+      throw new Error('Flame share did not raise Light Level to ' + targetLevel + '%. State: ' + JSON.stringify(await sharingDiagnostics()));
+    }
   }
   await Promise.all(pages.map((page) => waitForText(page, '.light-readout #light-stage', 'neighbourhood alive', 'full Light Level world stage')));
   console.log('PASS: cooperative flame sharing raised the shared Light Level to 100%');
