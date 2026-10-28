@@ -58,7 +58,7 @@
 - [x] Server rate limiting
 - [x] WebSocket heartbeat and timeout handling
 - [x] Client reconnect loop
-- [ ] Personal player-state restoration across reconnects
+- [x] Personal player-state restoration across reconnects
 - [ ] Automated multiplayer smoke test
 - [ ] Load test for 2 / 5 / 10 players
 
