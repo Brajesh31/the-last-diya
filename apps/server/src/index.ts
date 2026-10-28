@@ -30,7 +30,19 @@ const ACTION_INTERVAL_MS = 250;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const HEARTBEAT_TIMEOUT_MS = 45_000;
 const SESSION_GRACE_MS = 60_000;
-const spawnTransform: PlayerTransform = { x: 0, y: 0.75, z: 4, rotation: 0 };
+// Keep room joins inside walkable bounds and clear of major collision props.
+const SPAWN_POSITIONS: PlayerTransform[] = [
+  { x: 0, y: 0.75, z: 4.5, rotation: 0 },
+  { x: -0.9, y: 0.75, z: 4.5, rotation: 0 },
+  { x: 0.9, y: 0.75, z: 4.5, rotation: 0 },
+  { x: -1.8, y: 0.75, z: 4.5, rotation: 0 },
+  { x: 1.8, y: 0.75, z: 4.5, rotation: 0 },
+  { x: -0.9, y: 0.75, z: 6, rotation: 0 },
+  { x: 0, y: 0.75, z: 6, rotation: 0 },
+  { x: 0.9, y: 0.75, z: 6, rotation: 0 },
+  { x: -1.8, y: 0.75, z: 6, rotation: 0 },
+  { x: 1.8, y: 0.75, z: 6, rotation: 0 },
+];
 
 const PICKUPS: Record<string, { x: number; z: number; itemId: ItemId; quantity: number; questId?: QuestState['id'] }> = {
   'sharma-doorway-01': { x: -2.5, z: -1, itemId: 'wick', quantity: 2, questId: 'help-sharma-aunty' },
@@ -127,7 +139,7 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
     const roomId = message.roomId.trim().slice(0, 32) || 'main';
     const count = [...players.values()].filter((entry) => entry.roomId === roomId).length;
     if (count >= DEFAULT_ROOM_CAPACITY) { send(socket, { type: 'error', code: 'ROOM_FULL', message: 'Room is full' }); return; }
-    const player: Player = { id: randomUUID(), sessionToken: randomUUID(), roomId, socket, transform: { ...spawnTransform, x: count * 1.2 - 4.8 }, inventory: STARTING_INVENTORY.map((item) => ({ ...item })), quests: initialQuestStates(), lastStateAt: 0, lastActionAt: 0, lastPongAt: Date.now() };
+    const player: Player = { id: randomUUID(), sessionToken: randomUUID(), roomId, socket, transform: { ...SPAWN_POSITIONS[count] }, inventory: STARTING_INVENTORY.map((item) => ({ ...item })), quests: initialQuestStates(), lastStateAt: 0, lastActionAt: 0, lastPongAt: Date.now() };
     players.set(socket, player); sendSession(player, false); sendRoomSnapshot(player); broadcastRoom(roomId, { type: 'player_spawned', playerId: player.id, roomId, transform: player.transform }, socket); send(socket, { type: 'light_update', level: getRoomLight(roomId), source: player.id }); sendPlayerState(player); return;
   }
   const player = players.get(socket);

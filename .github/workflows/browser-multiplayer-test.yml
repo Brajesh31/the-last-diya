@@ -1,0 +1,77 @@
+name: Browser Multiplayer E2E
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/game/**'
+      - 'apps/server/**'
+      - 'packages/shared/**'
+      - 'packages/game-core/**'
+      - 'packages/networking/**'
+      - 'scripts/browser-multiplayer-test.mjs'
+      - 'package.json'
+      - '.github/workflows/browser-multiplayer-test.yml'
+  pull_request:
+    paths:
+      - 'apps/game/**'
+      - 'apps/server/**'
+      - 'packages/shared/**'
+      - 'packages/game-core/**'
+      - 'packages/networking/**'
+      - 'scripts/browser-multiplayer-test.mjs'
+      - 'package.json'
+      - '.github/workflows/browser-multiplayer-test.yml'
+
+jobs:
+  browser-multiplayer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build workspaces
+        run: npm run build
+
+      - name: Start game server
+        run: npx tsx apps/server/src/index.ts > server.log 2>&1 &
+
+      - name: Start browser game
+        run: npm run dev --workspace=@the-last-diya/game -- --host 127.0.0.1 > game.log 2>&1 &
+
+      - name: Wait for services
+        run: |
+          for i in {1..60}; do
+            server_ok=0
+            game_ok=0
+            curl --fail --silent http://127.0.0.1:8787/ > /dev/null && server_ok=1 || true
+            curl --fail --silent http://127.0.0.1:5174/ > /dev/null && game_ok=1 || true
+            if [ "$server_ok" = "1" ] && [ "$game_ok" = "1" ]; then exit 0; fi
+            sleep 1
+          done
+          cat server.log
+          cat game.log
+          exit 1
+
+      - name: Run two-client browser playtest
+        run: npm run test:browser:multiplayer
+
+      - name: Service logs
+        if: always()
+        run: |
+          echo '--- game server ---'
+          cat server.log || true
+          echo '--- browser game ---'
+          cat game.log || true
