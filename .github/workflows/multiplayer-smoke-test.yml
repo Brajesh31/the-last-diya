@@ -36,7 +36,7 @@ jobs:
         run: npm run build
 
       - name: Start game server
-        run: node apps/server/dist/index.js > server.log 2>&1 &
+        run: npx tsx apps/server/src/index.ts > server.log 2>&1 &
 
       - name: Wait for server
         run: |
