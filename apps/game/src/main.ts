@@ -15,6 +15,7 @@ import { createNPCCharacter } from './world/npc-character';
 import { createPlayerCharacter, type PlayerCharacterVisual } from './world/player-character';
 import { createNeighbourhoodProps } from './world/neighbourhood-props';
 import { movePlayerWithCollision } from './world/player-collision';
+import { installTouchControls } from './world/touch-controls';
 
 const root = document.getElementById('game')!;
 const scene = new THREE.Scene();
@@ -344,11 +345,17 @@ function interact() {
     nearest.index = (nearest.index + 1) % lines.length;
   }
 }
-addEventListener('keydown', (event) => {
-  if (event.key.toLowerCase() !== 'e' || event.repeat) return;
+function handleInteractionInput() {
+  ambientAudio.start();
   if (!ui.dialogue.hidden) { ui.hideDialogue(); return; }
   interact();
+}
+addEventListener('keydown', (event) => {
+  if (event.key.toLowerCase() !== 'e' || event.repeat) return;
+  event.preventDefault();
+  handleInteractionInput();
 });
+const touchControls = installTouchControls(keys, handleInteractionInput);
 
 // A narrow deterministic test bridge is exposed only in Vite development mode and only
 // when explicitly requested by the browser E2E workflow. It is never bundled into production.
@@ -370,6 +377,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         memoryOpen: boolean;
         finalEventActive: boolean;
         remoteAvatarLodEnabled: boolean;
+        touchControlsVisible: boolean;
         rendererInfo: { calls: number; triangles: number; geometries: number; textures: number };
       };
     };
@@ -415,6 +423,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         memoryOpen: memorySequence.isOpen(),
         finalEventActive,
         remoteAvatarLodEnabled,
+        touchControlsVisible: Boolean(document.querySelector('.touch-controls')),
         rendererInfo: {
           calls: renderer.info.render.calls,
           triangles: renderer.info.render.triangles,
@@ -490,4 +499,4 @@ function update(now: number) {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 connect();
 renderer.setAnimationLoop(update);
-window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); neighbourhoodProps.dispose(); npcCharacters.forEach((character) => character.dispose()); playerCharacter.dispose(); clearRemotePlayers(); ambientAudio.dispose(); });
+window.addEventListener('beforeunload', () => { touchControls.dispose(); memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); neighbourhoodProps.dispose(); npcCharacters.forEach((character) => character.dispose()); playerCharacter.dispose(); clearRemotePlayers(); ambientAudio.dispose(); });

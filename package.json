@@ -21,7 +21,8 @@
     "test:server-hardening": "node scripts/server-hardening-test.mjs",
     "test:multiplayer:perf": "node scripts/multiplayer-performance-test.mjs",
     "test:browser:perf": "node scripts/browser-render-performance-test.mjs",
-    "test:server-security": "node scripts/server-security-test.mjs"
+    "test:server-security": "node scripts/server-security-test.mjs",
+    "test:browser:mobile": "node scripts/browser-mobile-controls-test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"
