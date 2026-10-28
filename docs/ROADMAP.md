@@ -59,7 +59,8 @@
 - [x] WebSocket heartbeat and timeout handling
 - [x] Client reconnect loop
 - [x] Personal player-state restoration across reconnects
-- [ ] Automated multiplayer smoke test
+- [x] Automated multiplayer smoke-test script
+- [x] CI workflow for multiplayer smoke tests
 - [ ] Load test for 2 / 5 / 10 players
 
 ## Phase 4 · Vertical Slice
