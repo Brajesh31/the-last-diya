@@ -94,6 +94,13 @@ const npcGroups = NPCS.map((npc, index) => {
   return { npc, group, index: 0, home: group.position.clone(), target: group.position.clone(), speed: 0.5, phase: 0, active: false };
 });
 const npcActivity = createNPCActivity(npcGroups);
+const npcContextDialogue: Record<string, { threshold: number; text: string }> = {
+  'sharma-aunty': { threshold: 35, text: 'Look at the lamps. Every home feels a little closer tonight.' },
+  'mithai-seller': { threshold: 50, text: 'The market is waking up. I saved the first box of sweets for the neighbours.' },
+  'chai-seller': { threshold: 40, text: 'The kettle sounds different when people stop by again.' },
+  'temple-caretaker': { threshold: 65, text: 'You have brought enough light for an old memory to be seen.' },
+  'unknown-stranger': { threshold: 85, text: 'The last district is opening. Some memories return only when the light is shared.' },
+};
 
 const pickupDefinitions = [
   { id: 'sharma-doorway-01', x: -2.5, z: -1, label: '2 wicks' },
@@ -258,7 +265,14 @@ function interact() {
   const nearbyRemote = [...remotePlayers.entries()].find(([, remote]) => isNear(player.position, remote.mesh.position, 2.5));
   if (nearbyRemote) { send({ type: 'share_flame_request', targetPlayerId: nearbyRemote[0] }); return; }
   const nearest = npcGroups.find((entry) => isNear(player.position, entry.group.position, 1.5));
-  if (nearest) { const line = nearest.npc.dialogue[nearest.index]; ui.showDialogue(line.speaker, line.text); nearest.index = (nearest.index + 1) % nearest.npc.dialogue.length; }
+  if (nearest) {
+    const context = npcContextDialogue[nearest.npc.id];
+    const lines = [...nearest.npc.dialogue];
+    if (context && lightLevel >= context.threshold) lines.push({ speaker: nearest.npc.name, text: context.text });
+    const line = lines[nearest.index % lines.length];
+    ui.showDialogue(line.speaker, line.text);
+    nearest.index = (nearest.index + 1) % lines.length;
+  }
 }
 addEventListener('keydown', (event) => {
   if (event.key.toLowerCase() !== 'e' || event.repeat) return;
