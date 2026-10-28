@@ -1,0 +1,9 @@
+{
+  "name": "@the-last-diya/game",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {"dev": "vite --port 5174", "build": "tsc -b && vite build", "typecheck": "tsc --noEmit"},
+  "dependencies": {"@the-last-diya/game-core": "0.1.0", "@the-last-diya/shared": "0.1.0", "three": "^0.180.0"},
+  "devDependencies": {"@types/three": "^0.180.0", "typescript": "^5.9.2", "vite": "^7.1.7"}
+}

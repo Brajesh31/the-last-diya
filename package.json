@@ -1,0 +1,14 @@
+{
+  "name": "the-last-diya",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The Last Diya, a cooperative multiplayer web adventure.",
+  "packageManager": "npm@11.6.2",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run dev -ws --if-present",
+    "build": "npm run build -ws --if-present",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "test": "npm run test -ws --if-present"
+  }
+}
