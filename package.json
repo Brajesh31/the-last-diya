@@ -11,6 +11,7 @@
     "typecheck": "npm run typecheck -ws --if-present",
     "test": "npm run test -ws --if-present",
     "test:multiplayer": "node scripts/multiplayer-smoke-test.mjs",
-    "test:multiplayer:load": "node scripts/multiplayer-load-test.mjs"
+    "test:multiplayer:load": "node scripts/multiplayer-load-test.mjs",
+    "test:vertical-slice": "node scripts/vertical-slice-quest-test.mjs"
   }
 }
