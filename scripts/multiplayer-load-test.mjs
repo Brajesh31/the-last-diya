@@ -29,27 +29,27 @@ function send(client, message) {
 }
 
 async function moveClientTo(client, x, z, rotation, observers, label) {
-  const started = Date.now();
-  let lastSentAt = 0;
-  while (Date.now() - started < timeoutMs) {
-    if (Date.now() - lastSentAt >= 120) {
-      send(client, {
-        type: 'player_state',
-        transform: { x, y: 0.75, z, rotation },
-      });
-      lastSentAt = Date.now();
-    }
-    const synchronized = observers.every((observer) => {
-      const transform = observer.remoteTransforms.get(client.id);
-      return transform &&
-        Math.abs(transform.x - x) < 0.001 &&
-        Math.abs(transform.z - z) < 0.001 &&
-        Math.abs(transform.rotation - rotation) < 0.001;
+  const start = observers[0]?.remoteTransforms.get(client.id);
+  if (!start) throw new Error(`no observer transform for client ${client.index} before ${label}`);
+  const distance = Math.hypot(x - start.x, z - start.z);
+  const steps = Math.max(1, Math.ceil(distance / 0.35));
+  for (let index = 1; index <= steps; index += 1) {
+    const nextX = start.x + (x - start.x) * index / steps;
+    const nextZ = start.z + (z - start.z) * index / steps;
+    await wait(120);
+    send(client, {
+      type: 'player_state',
+      transform: { x: nextX, y: 0.75, z: nextZ, rotation },
     });
-    if (synchronized) return;
-    await wait(25);
+    await waitUntil(`${label} movement step ${index}/${steps}`, () =>
+      observers.every((observer) => {
+        const transform = observer.remoteTransforms.get(client.id);
+        return transform &&
+          Math.abs(transform.x - nextX) < 0.001 &&
+          Math.abs(transform.z - nextZ) < 0.001 &&
+          Math.abs(transform.rotation - rotation) < 0.001;
+      }));
   }
-  throw new Error(`timeout waiting for ${label} after retrying movement`);
 }
 
 function connectClient(index, roomId, sessionToken) {
