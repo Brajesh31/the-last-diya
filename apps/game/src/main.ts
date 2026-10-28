@@ -8,6 +8,7 @@ import { createCelebration } from './world/celebration';
 import { createMemoryMarker, createMemorySequence } from './world/memory-sequence';
 import { applyNeighbourhoodLight, createNeighbourhoodState } from './world/neighbourhood-state';
 import { createAmbientAudio } from './world/ambient-audio';
+import { createEnvironmentStory } from './world/environment-story';
 
 const root = document.getElementById('game')!;
 const scene = new THREE.Scene();
@@ -42,6 +43,7 @@ for (let i = -18; i <= 18; i += 6) for (const x of [-6, 6]) {
 }
 const neighbourhood = createNeighbourhoodState(scene);
 const ambientAudio = createAmbientAudio();
+const environmentStory = createEnvironmentStory(scene);
 
 const diya = new THREE.Group();
 const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8b5a35, roughness: 0.8 }));
@@ -109,7 +111,7 @@ const memorySequence = createMemorySequence();
 const celebration = createCelebration(scene);
 
 const hud = document.createElement('div');
-hud.innerHTML = `<div class="hud"><strong>THE LAST DIYA</strong><span id="connection">CONNECTING</span><span id="light">LIGHT ${LIGHT_LEVEL_START}%</span><small>WASD / Arrow keys · Move · E · Interact</small></div>`;
+hud.innerHTML = `<div class="hud"><strong>THE LAST DIYA</strong><span id="connection">CONNECTING</span><span id="light">LIGHT ${LIGHT_LEVEL_START}%</span><small>WASD / Arrow keys · E · Interact</small></div>`;
 document.body.appendChild(hud);
 const style = document.createElement('style');
 style.textContent = `body{margin:0;overflow:hidden;background:#080a0a;font-family:system-ui;color:#f4f0e8}.hud{position:fixed;top:22px;left:22px;display:grid;gap:7px;padding:14px 16px;background:#0c0d0dcc;border:1px solid #30312e;border-radius:10px;min-width:190px}.hud span{font-size:13px;color:#f1b85b}.hud small{color:#9c9e99}.prompt{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);padding:12px 16px;background:#0c0d0de8;border:1px solid #30312e;border-radius:8px}`;
@@ -282,11 +284,12 @@ function update(now: number) {
   if (ui.dialogue.hidden && !lockedByMemory) prompt.textContent = near && !litLocally ? 'Press E to light the diya' : finalNear && !finalEventActive ? 'Press E to light the community diya' : pickup ? `Press E to collect ${pickup.definition.label}` : remote ? 'Press E to share your flame' : nearNpc ? `Press E to talk to ${nearNpc.npc.name}` : darkDistrictUnlocked ? 'The Dark District remembers' : `Shared Light Level ${lightLevel}%`;
   if (now - lastNetworkSend > 100 && !lockedByMemory) { send({ type: 'player_state', transform: playerTransform() }); lastNetworkSend = now; }
   for (const remoteEntry of remotePlayers.values()) { remoteEntry.mesh.position.lerp(remoteEntry.target, 0.18); remoteEntry.mesh.rotation.y = THREE.MathUtils.lerp(remoteEntry.mesh.rotation.y, remoteEntry.rotation, 0.18); }
+  environmentStory.update(lightLevel, now / 1000);
   communityFlame.rotation.y += deltaSeconds * 1.5;
   communityFlame.scale.y = 2.2 + Math.sin(now / 120) * 0.25;
-  ambientAudio.update(deltaSeconds);
   memorySequence.update(deltaSeconds);
   celebration.update(deltaSeconds);
+  ambientAudio.update(deltaSeconds);
   camera.position.lerp(new THREE.Vector3(player.position.x + 6, 6.5, player.position.z + 8), 0.06);
   camera.lookAt(player.position.x, 1, player.position.z);
   renderer.render(scene, camera);
@@ -295,4 +298,4 @@ function update(now: number) {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 connect();
 renderer.setAnimationLoop(update);
-window.addEventListener('beforeunload', () => { ambientAudio.dispose(); memorySequence.dispose(); celebration.dispose(); });
+window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); ambientAudio.dispose(); });
