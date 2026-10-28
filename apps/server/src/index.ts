@@ -34,6 +34,7 @@ const HEARTBEAT_TIMEOUT_MS = 45_000;
 const SESSION_GRACE_MS = 60_000;
 // Keep room joins inside walkable bounds and clear of major collision props.
 const SPAWN_POSITIONS: PlayerTransform[] = [
+  // Preserve the original starting spots for existing small-room tests.
   { x: 0, y: 0.75, z: 4.5, rotation: 0 },
   { x: -0.9, y: 0.75, z: 4.5, rotation: 0 },
   { x: 0.9, y: 0.75, z: 4.5, rotation: 0 },
@@ -44,6 +45,27 @@ const SPAWN_POSITIONS: PlayerTransform[] = [
   { x: 0.9, y: 0.75, z: 6, rotation: 0 },
   { x: -1.8, y: 0.75, z: 6, rotation: 0 },
   { x: 1.8, y: 0.75, z: 6, rotation: 0 },
+  // Four additional rows provide enough separated, walkable spawn positions for 30 players.
+  { x: -2.4, y: 0.75, z: 7.5, rotation: 0 },
+  { x: -1.2, y: 0.75, z: 7.5, rotation: 0 },
+  { x: 0, y: 0.75, z: 7.5, rotation: 0 },
+  { x: 1.2, y: 0.75, z: 7.5, rotation: 0 },
+  { x: 2.4, y: 0.75, z: 7.5, rotation: 0 },
+  { x: -2.4, y: 0.75, z: 9, rotation: 0 },
+  { x: -1.2, y: 0.75, z: 9, rotation: 0 },
+  { x: 0, y: 0.75, z: 9, rotation: 0 },
+  { x: 1.2, y: 0.75, z: 9, rotation: 0 },
+  { x: 2.4, y: 0.75, z: 9, rotation: 0 },
+  { x: -2.4, y: 0.75, z: 10.5, rotation: 0 },
+  { x: -1.2, y: 0.75, z: 10.5, rotation: 0 },
+  { x: 0, y: 0.75, z: 10.5, rotation: 0 },
+  { x: 1.2, y: 0.75, z: 10.5, rotation: 0 },
+  { x: 2.4, y: 0.75, z: 10.5, rotation: 0 },
+  { x: -2.4, y: 0.75, z: 12, rotation: 0 },
+  { x: -1.2, y: 0.75, z: 12, rotation: 0 },
+  { x: 0, y: 0.75, z: 12, rotation: 0 },
+  { x: 1.2, y: 0.75, z: 12, rotation: 0 },
+  { x: 2.4, y: 0.75, z: 12, rotation: 0 },
 ];
 
 const PICKUPS: Record<string, { x: number; z: number; itemId: ItemId; quantity: number; questId?: QuestState['id'] }> = {

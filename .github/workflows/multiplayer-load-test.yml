@@ -6,7 +6,7 @@ on:
       counts:
         description: Comma-separated player counts to test
         required: false
-        default: '2,5,10'
+        default: '2,5,10,20,30'
   push:
     branches: [main]
     paths:
@@ -58,7 +58,7 @@ jobs:
 
       - name: Run multiplayer load test
         env:
-          LOAD_COUNTS: ${{ inputs.counts || '2,5,10' }}
+          LOAD_COUNTS: ${{ inputs.counts || '2,5,10,20,30' }}
         run: npm run test:multiplayer:load
 
       - name: Server log

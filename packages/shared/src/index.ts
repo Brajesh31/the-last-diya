@@ -3,7 +3,7 @@ export const LIGHT_LEVEL_START = 0;
 export const MAX_LIGHT_LEVEL = 100;
 export const DARK_DISTRICT_UNLOCK_LEVEL = 90;
 export const FINAL_EVENT_LEVEL = 100;
-export const DEFAULT_ROOM_CAPACITY = 10;
+export const DEFAULT_ROOM_CAPACITY = 30;
 
 export type PlayerId = string;
 export type RoomId = string;

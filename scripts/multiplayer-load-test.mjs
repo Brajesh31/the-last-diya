@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 
 const url = process.env.GAME_SERVER_URL ?? 'ws://127.0.0.1:8787';
-const requestedCounts = (process.env.LOAD_COUNTS ?? '2,5,10')
+const requestedCounts = (process.env.LOAD_COUNTS ?? '2,5,10,20,30')
   .split(',')
   .map((value) => Number(value.trim()))
   .filter(Boolean);
@@ -9,8 +9,8 @@ const timeoutMs = Number(process.env.TIMEOUT_MS ?? 10000);
 const settleMs = Number(process.env.SETTLE_MS ?? 1000);
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-if (!requestedCounts.length || requestedCounts.some((count) => !Number.isInteger(count) || count < 2 || count > 10)) {
-  throw new Error('LOAD_COUNTS must contain integers between 2 and 10');
+if (!requestedCounts.length || requestedCounts.some((count) => !Number.isInteger(count) || count < 2 || count > 30)) {
+  throw new Error('LOAD_COUNTS must contain integers between 2 and 30');
 }
 
 async function waitUntil(label, predicate, timeout = timeoutMs, diagnostics = () => '') {
@@ -59,6 +59,7 @@ function connectClient(index, roomId, sessionToken) {
       index,
       socket,
       id: null,
+      transform: null,
       sessionToken: null,
       restored: false,
       roomSnapshot: null,
@@ -99,6 +100,7 @@ function connectClient(index, roomId, sessionToken) {
       }
       if (message.type === 'session_assigned') {
         client.id = message.playerId;
+        client.transform = message.transform;
         client.sessionToken = message.sessionToken;
         client.restored = message.restored;
       }
@@ -164,6 +166,15 @@ async function runScenario(playerCount) {
     await waitUntil('all unique sessions and room snapshots', () =>
       clients.every((client) => client.id && client.roomSnapshot));
     await wait(settleMs);
+    await waitUntil('all clients have unique spawn transforms', () =>
+      clients.every((client) => client.transform && client.remoteTransforms.size === playerCount - 1));
+
+    const spawnTransforms = [clients[0].transform, ...clients[0].remoteTransforms.values()];
+    const spawnKeys = new Set(spawnTransforms.map((transform) =>
+      `${transform.x.toFixed(2)},${transform.z.toFixed(2)}`));
+    if (spawnKeys.size !== playerCount) {
+      throw new Error(`expected ${playerCount} distinct spawn positions, got ${spawnKeys.size}`);
+    }
 
     const ids = new Set(clients.map((client) => client.id));
     if (ids.size !== playerCount) {
@@ -226,6 +237,20 @@ async function runScenario(playerCount) {
     }
     if (!restored.targetStates.has('diya-main-street-01') || restored.lightLevel < 10) {
       throw new Error('restored room snapshot did not include shared world state');
+    }
+
+    if (playerCount === 30) {
+      const overflow = await connectClient(playerCount, roomId);
+      try {
+        await waitUntil('31st player rejected because the room is full', () =>
+          overflow.errors.some((error) => error.code === 'ROOM_FULL') || Boolean(overflow.id));
+        if (overflow.id || !overflow.errors.some((error) => error.code === 'ROOM_FULL')) {
+          throw new Error('expected a ROOM_FULL response for the 31st player');
+        }
+        console.log('PASS 30-player room capacity | 31st player rejected with ROOM_FULL');
+      } finally {
+        if (overflow.socket.readyState !== WebSocket.CLOSED) overflow.socket.close();
+      }
     }
 
     const duration = Date.now() - startedAt;
