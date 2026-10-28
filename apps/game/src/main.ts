@@ -11,6 +11,7 @@ import { createAmbientAudio } from './world/ambient-audio';
 import { createEnvironmentStory } from './world/environment-story';
 import { createAtmosphereVfx } from './world/atmosphere-vfx';
 import { createNPCActivity } from './world/npc-activity';
+import { createNPCCharacter } from './world/npc-character';
 import { createNeighbourhoodProps } from './world/neighbourhood-props';
 
 const root = document.getElementById('game')!;
@@ -85,11 +86,9 @@ scene.add(player);
 const remotePlayers = new Map<PlayerId, { mesh: THREE.Mesh; target: THREE.Vector3; rotation: number }>();
 function makeRemotePlayer() { const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.72, 4, 12), new THREE.MeshStandardMaterial({ color: 0x8f9b96 })); mesh.castShadow = true; scene.add(mesh); return mesh; }
 
-const npcGroups = NPCS.map((npc) => {
-  const group = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 0.7, 4, 12), new THREE.MeshStandardMaterial({ color: 0x9d8062 }));
-  body.position.y = 0.7;
-  group.add(body);
+const npcCharacters = NPCS.map((npc) => createNPCCharacter(npc));
+const npcGroups = NPCS.map((npc, index) => {
+  const group = npcCharacters[index].group;
   group.position.set(npc.position.x, 0, npc.position.z);
   scene.add(group);
   return { npc, group, index: 0, home: group.position.clone(), target: group.position.clone(), speed: 0.5, phase: 0, active: false };
@@ -291,6 +290,7 @@ function update(now: number) {
   if (now - lastNetworkSend > 100 && !lockedByMemory) { send({ type: 'player_state', transform: playerTransform() }); lastNetworkSend = now; }
   for (const remoteEntry of remotePlayers.values()) { remoteEntry.mesh.position.lerp(remoteEntry.target, 0.18); remoteEntry.mesh.rotation.y = THREE.MathUtils.lerp(remoteEntry.mesh.rotation.y, remoteEntry.rotation, 0.18); }
   npcActivity.update(lightLevel, now / 1000, deltaSeconds);
+  npcCharacters.forEach((character, index) => character.update(lightLevel, now / 1000, deltaSeconds, npcGroups[index].active));
   environmentStory.update(lightLevel, now / 1000);
   atmosphereVfx.update(lightLevel, deltaSeconds, now / 1000);
   neighbourhoodProps.update(lightLevel, now / 1000);
@@ -307,4 +307,4 @@ function update(now: number) {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 connect();
 renderer.setAnimationLoop(update);
-window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); neighbourhoodProps.dispose(); ambientAudio.dispose(); });
+window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); neighbourhoodProps.dispose(); npcCharacters.forEach((character) => character.dispose()); ambientAudio.dispose(); });
