@@ -12,11 +12,31 @@ if (!Number.isInteger(players) || players < 2 || players > 10) {
 const sockets = [];
 const state = new Map();
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const send = (client, message) => client.socket.send(JSON.stringify(message));
+
+async function waitUntil(label, predicate) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (predicate()) return;
+    await wait(20);
+  }
+  throw new Error(`timeout waiting for ${label}`);
+}
 
 function openClient(index) {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(url);
-    const client = { socket, id: null, roomSnapshot: null, lightUpdates: 0, joined: false, targetStates: new Set() };
+    const client = {
+      socket,
+      id: null,
+      roomSnapshot: null,
+      worldState: null,
+      quests: [],
+      lightUpdates: 0,
+      joined: false,
+      targetStates: new Set(),
+      successfulPickups: new Set(),
+    };
     const timer = setTimeout(() => reject(new Error(`client ${index} connection timeout`)), timeoutMs);
 
     socket.on('open', () => {
@@ -32,7 +52,9 @@ function openClient(index) {
       if (message.type === 'room_snapshot') client.roomSnapshot = message;
       if (message.type === 'light_update') client.lightUpdates += 1;
       if (message.type === 'world_state') client.worldState = message;
+      if (message.type === 'quest_update') client.quests = message.quests;
       if (message.type === 'target_state' && message.active) client.targetStates.add(message.targetId);
+      if (message.type === 'pickup_result' && message.success) client.successfulPickups.add(message.targetId);
       if (message.type === 'player_spawned') client.joined = true;
       state.set(index, client);
     });
@@ -41,6 +63,14 @@ function openClient(index) {
       if (!client.joined && !client.id) reject(error);
     });
   });
+}
+
+function isQuestCompleted(client, id) {
+  return client.quests.some((quest) => quest.id === id && quest.status === 'completed');
+}
+
+function hasQuestAvailable(client, id) {
+  return client.quests.some((quest) => quest.id === id && quest.status === 'available');
 }
 
 try {
@@ -59,23 +89,43 @@ try {
   }
 
   const first = state.get(0);
-  first.socket.send(JSON.stringify({ type: 'player_state', transform: { x: 0, y: 0.75, z: -4, rotation: 0 } }));
-  await wait(250);
-  first.socket.send(JSON.stringify({ type: 'interact_request', targetId: 'diya-main-street-01' }));
-  await wait(500);
+  const second = state.get(1);
 
-  for (const [index, client] of state) {
-    if (!client.worldState || client.worldState.lightLevel < 10) {
-      throw new Error(`client ${index} did not observe Light Level >= 10`);
-    }
-    if (!client.targetStates.has('diya-main-street-01')) {
-      throw new Error(`client ${index} did not observe the main diya becoming active`);
-    }
-  }
+  // Player one activates the shared world target.
+  send(first, { type: 'player_state', transform: { x: 0, y: 0.75, z: -4, rotation: 0 } });
+  await wait(150);
+  send(first, { type: 'interact_request', targetId: 'diya-main-street-01' });
+  await waitUntil('shared Light Level and active diya', () =>
+    [...state.values()].every((client) =>
+      client.worldState?.lightLevel >= 10 && client.targetStates.has('diya-main-street-01')));
+
+  // The second player must still be able to complete their own first-flame quest
+  // after the world diya has already been lit by player one.
+  send(second, { type: 'player_state', transform: { x: 0, y: 0.75, z: -4, rotation: 0 } });
+  await wait(150);
+  send(second, { type: 'interact_request', targetId: 'diya-main-street-01' });
+  await waitUntil('second player first-flame quest completion', () => isQuestCompleted(second, 'first-flame'));
+
+  // Pickups are personal quest objects: both players can collect the same doorway objective.
+  send(first, { type: 'player_state', transform: { x: -2.5, y: 0.75, z: -1, rotation: 0 } });
+  send(second, { type: 'player_state', transform: { x: -2.5, y: 0.75, z: -1, rotation: 0 } });
+  await wait(150);
+  await wait(300);
+  send(first, { type: 'pickup_request', targetId: 'sharma-doorway-01' });
+  send(second, { type: 'pickup_request', targetId: 'sharma-doorway-01' });
+  await waitUntil('personal doorway quest pickup for both players', () =>
+    first.successfulPickups.has('sharma-doorway-01') && second.successfulPickups.has('sharma-doorway-01'));
+  await waitUntil('doorway quest completion for both players', () =>
+    isQuestCompleted(first, 'help-sharma-aunty') &&
+    isQuestCompleted(second, 'help-sharma-aunty') &&
+    hasQuestAvailable(first, 'market-lights') &&
+    hasQuestAvailable(second, 'market-lights'));
 
   console.log(`PASS: ${players} clients joined room ${roomId}`);
   console.log(`PASS: shared Light Level reached ${first.worldState.lightLevel}%`);
-  console.log('PASS: server-authoritative diya interaction and target state propagated');
+  console.log('PASS: main diya activation synchronized to every player');
+  console.log('PASS: second player can progress after shared diya is already lit');
+  console.log('PASS: both players can collect the doorway objective and advance personal quests');
 } finally {
   for (const socket of sockets) socket.close();
 }
