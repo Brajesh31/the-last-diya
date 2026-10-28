@@ -94,8 +94,6 @@ function makeRemotePlayer(id: PlayerId, lowDetail = remoteAvatarLodEnabled) { re
 function setRemoteAvatarDetailMode(lowDetail: boolean) {
   if (remoteAvatarLodEnabled === lowDetail) return;
   remoteAvatarLodEnabled = lowDetail;
-  // Real-time shadows are costly with a crowd; restore them when the room becomes sparse.
-  renderer.shadowMap.enabled = !lowDetail;
   for (const [id, remote] of remotePlayers) {
     const visual = makeRemotePlayer(id, lowDetail);
     const mesh = visual.group;
@@ -233,7 +231,6 @@ function clearRemotePlayers() {
   }
   remotePlayers.clear();
   remoteAvatarLodEnabled = false;
-  renderer.shadowMap.enabled = true;
 }
 function addRemotePlayer(id: PlayerId, transform: PlayerTransform) {
   if (id === currentPlayerId || remotePlayers.has(id)) return;
