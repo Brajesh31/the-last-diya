@@ -60,12 +60,11 @@
 - [x] Client reconnect loop
 - [x] Personal player-state restoration across reconnects
 - [x] Automated multiplayer smoke-test script
-- [x] 2 / 5 / 10-player load-test script
-- [x] Load-test script expanded to cover 20 / 30-player sessions and unique spawn positions
+- [x] 2 / 5 / 10 / 20 / 30-player load-test script with unique spawn-position validation
 - [x] GitHub Actions workflows for multiplayer smoke and load tests
 - [x] Multiplayer smoke workflow passes for shared world state and per-player quest progress
 - [x] Multiplayer load-test workflow passes at 2, 5 and 10 players
-- [ ] Validate 20 / 30-player sessions
+- [x] Validate 20 / 30-player sessions through simulated server/WebSocket load tests
 
 ## Phase 4 · Vertical Slice | In progress
 - [x] One compact neighbourhood blockout
@@ -107,11 +106,12 @@
 - [x] Workspace type-check and production build pass in GitHub Actions
 - [x] Expanded multiplayer smoke test verifies main diya target-state synchronization
 - [x] Expanded multiplayer smoke test verifies both players can progress their personal quest chain
-- [x] Load tests verify remote movement synchronization at 2 / 5 / 10 players
+- [x] Load tests verify remote movement synchronization at 2 / 5 / 10 / 20 / 30 players
 - [x] Load tests verify reconnect restores player session, quest progress, inventory, personal pickups and shared world state
 - [x] Automated player collision test passes
 - [x] Automated five-quest vertical slice test passes
-- [x] Green multiplayer load tests (2 / 5 / 10-player workflow passes in GitHub Actions)
+- [x] Green multiplayer load tests (2 / 5 / 10 / 20 / 30-player workflow passes in GitHub Actions)
+- [x] 30-player room accepts all 30 unique spawns and rejects the 31st player with ROOM_FULL
 - [x] Server rejects implausibly fast movement and out-of-bounds coordinates
 - [x] Room isolation tests verify player snapshots and shared diya state stay within each room
 - [x] Server movement speed/bounds validation and room isolation tests pass
@@ -139,4 +139,4 @@
 Two browser windows join the same world. One player lights a diya, the other sees the change, and the shared Light Level updates. The street brightens, NPCs react, players can share flame and collect quest items, the Dark District unlocks at 90%, and both players can reach the final event.
 
 ### Validation note
-The character and environment systems are implemented as procedural prototypes. Workspace type-check/build, two-player cooperative smoke tests, collision tests, the five-quest chain, two-client Chromium checks for shared diya/personal quest rewards, server movement speed/bounds/prop-collision validation, room isolation, and 2 / 5 / 10-player load tests pass in GitHub Actions. Load tests also cover reconnect recovery for quest progress, inventory, personal pickups and shared world state. The 20 / 30-player capacity tests have been added and will be marked validated after the workflow passes. A manual visual playtest through the full five-quest chain in separate interactive browser windows and final-art replacement remain outstanding.
+The character and environment systems are implemented as procedural prototypes. Workspace type-check/build, two-player cooperative smoke tests, collision tests, the five-quest chain, two-client Chromium checks for shared diya/personal quest rewards, server movement speed/bounds/prop-collision validation, room isolation, and 2 / 5 / 10-player load tests pass in GitHub Actions. Load tests also cover reconnect recovery for quest progress, inventory, personal pickups and shared world state. The 2 / 5 / 10 / 20 / 30-player server load tests pass in GitHub Actions, and the room rejects a 31st player at capacity. These are simulated WebSocket/server tests, not a 30-browser rendering benchmark. A manual visual playtest through the full five-quest chain in separate interactive browser windows and final-art replacement remain outstanding.
