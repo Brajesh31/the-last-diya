@@ -136,10 +136,15 @@ const memorySequence = createMemorySequence();
 const celebration = createCelebration(scene);
 
 const hud = document.createElement('div');
-hud.innerHTML = `<div class="hud"><strong>THE LAST DIYA</strong><span id="connection">CONNECTING</span><span id="light">LIGHT ${LIGHT_LEVEL_START}%</span><small>WASD / Arrow keys · E · Interact</small></div>`;
+hud.innerHTML = `<div class="hud">
+  <div class="hud-heading"><strong>THE LAST DIYA</strong><span id="connection" class="connection-state">CONNECTING</span></div>
+  <div class="light-readout"><span id="light">LIGHT ${LIGHT_LEVEL_START}%</span><span id="light-stage">THE STREET IS QUIET</span></div>
+  <div class="light-track" role="progressbar" aria-label="Shared Light Level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${LIGHT_LEVEL_START}"><span id="light-fill"></span></div>
+  <small>WASD / Arrow keys · E · Interact</small>
+</div>`;
 document.body.appendChild(hud);
 const style = document.createElement('style');
-style.textContent = `body{margin:0;overflow:hidden;background:#080a0a;font-family:system-ui;color:#f4f0e8}.hud{position:fixed;top:22px;left:22px;display:grid;gap:7px;padding:14px 16px;background:#0c0d0dcc;border:1px solid #30312e;border-radius:10px;min-width:190px}.hud span{font-size:13px;color:#f1b85b}.hud small{color:#9c9e99}.prompt{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);padding:12px 16px;background:#0c0d0de8;border:1px solid #30312e;border-radius:8px}`;
+style.textContent = `body{margin:0;overflow:hidden;background:#080a0a;font-family:system-ui;color:#f4f0e8}.hud{position:fixed;top:22px;left:22px;display:grid;gap:10px;padding:15px 16px;background:#0c0d0de8;border:1px solid #34352f;border-radius:12px;width:min(260px,calc(100vw - 60px));box-sizing:border-box;backdrop-filter:blur(12px)}.hud-heading,.light-readout{display:flex;align-items:center;justify-content:space-between;gap:12px}.hud-heading strong{font-size:12px;letter-spacing:.12em}.hud .connection-state{font-size:10px;color:#b2b5aa;letter-spacing:.08em}.light-readout{align-items:flex-start;flex-direction:column;gap:3px}.light-readout #light{font-size:19px;font-weight:700;color:#f1b85b;font-variant-numeric:tabular-nums}.light-readout #light-stage{font-size:10px;letter-spacing:.09em;color:#b8b3a6}.light-track{height:5px;overflow:hidden;background:#292a26;border-radius:99px}.light-track span{display:block;width:0;height:100%;background:#e8b45b;border-radius:99px;transition:width .35s ease}.hud small{color:#9c9e99;font-size:11px}.prompt{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);padding:12px 16px;background:#0c0d0de8;border:1px solid #30312e;border-radius:8px;max-width:calc(100vw - 36px);box-sizing:border-box;text-align:center;backdrop-filter:blur(12px)}@media(max-width:640px){.hud{top:10px;left:10px;width:min(235px,calc(100vw - 20px));padding:12px}.inventory-panel{right:10px!important;top:10px!important;min-width:unset!important;max-width:128px}.quest-panel{top:auto!important;bottom:86px;left:10px!important;min-width:unset!important;width:min(235px,calc(100vw - 20px));box-sizing:border-box}.dialogue-panel{bottom:14px!important}.prompt{bottom:66px;font-size:12px;padding:9px 12px;max-width:calc(100vw - 20px)}}`;
 document.head.appendChild(style);
 installGameUiStyles();
 const ui = createGameUi();
@@ -171,6 +176,16 @@ function setLightLevel(value: number) {
   lightLevel = clampLightLevel(value);
   ambientAudio.setLightLevel(lightLevel);
   document.getElementById('light')!.textContent = `LIGHT ${lightLevel}%`;
+  document.getElementById('light-fill')!.style.width = `${lightLevel}%`;
+  document.querySelector('.light-track')!.setAttribute('aria-valuenow', String(lightLevel));
+  const lightStage = lightLevel >= FINAL_EVENT_LEVEL ? 'NEIGHBOURHOOD ALIVE'
+    : lightLevel >= DARK_DISTRICT_UNLOCK_LEVEL ? 'DARK DISTRICT OPEN'
+    : lightLevel >= 75 ? 'MEMORIES RETURN'
+    : lightLevel >= 50 ? 'MARKET LIGHTS RETURN'
+    : lightLevel >= 35 ? 'THE STREET WAKES'
+    : lightLevel >= 10 ? 'DOORWAYS GLOW'
+    : 'THE STREET IS QUIET';
+  document.getElementById('light-stage')!.textContent = lightStage;
   const ambience = applyNeighbourhoodLight(neighbourhood, lightLevel);
   hemi.intensity = 0.45 + ambience.targetExposure * 0.25;
   scene.background = new THREE.Color(lightLevel > 0 ? 0x15110b : 0x080a0a);
@@ -301,6 +316,7 @@ addEventListener('keydown', (event) => {
   interact();
 });
 
+const moveDirection = new THREE.Vector3();
 const cameraDesiredPosition = new THREE.Vector3();
 const cameraLookTarget = new THREE.Vector3();
 
@@ -311,12 +327,16 @@ function update(now: number) {
   const lockedByMemory = memorySequence.isOpen();
   let playerMoving = false;
   if (!lockedByMemory) {
-    const direction = new THREE.Vector3((keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0), 0, (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0));
-    if (direction.lengthSq() > 0) {
+    moveDirection.set(
+      (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0),
+      0,
+      (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0),
+    );
+    if (moveDirection.lengthSq() > 0) {
       playerMoving = true;
-      direction.normalize();
-      player.position.addScaledVector(direction, 6 * deltaSeconds);
-      player.rotation.y = Math.atan2(direction.x, direction.z);
+      moveDirection.normalize();
+      player.position.addScaledVector(moveDirection, 6 * deltaSeconds);
+      player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
       player.position.x = THREE.MathUtils.clamp(player.position.x, -3.2, 3.2);
       player.position.z = THREE.MathUtils.clamp(player.position.z, darkDistrictUnlocked ? -27 : -19, darkDistrictUnlocked ? 19 : -0.01);
     }
