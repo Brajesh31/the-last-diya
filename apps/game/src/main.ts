@@ -18,14 +18,16 @@ import { movePlayerWithCollision } from './world/player-collision';
 import { installTouchControls } from './world/touch-controls';
 
 const root = document.getElementById('game')!;
+const touchDevice = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
+let lowQualityMode = touchDevice;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x080a0a);
 scene.fog = new THREE.Fog(0x080a0a, 18, 55);
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, lowQualityMode ? 1 : 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !lowQualityMode;
 root.appendChild(renderer.domElement);
 
 const hemi = new THREE.HemisphereLight(0x91a0b2, 0x17120c, 0.45);
@@ -53,6 +55,23 @@ const neighbourhoodProps = createNeighbourhoodProps(scene);
 const ambientAudio = createAmbientAudio();
 const environmentStory = createEnvironmentStory(scene);
 const atmosphereVfx = createAtmosphereVfx(scene);
+
+function applyGraphicsQuality(lowQuality: boolean) {
+  lowQualityMode = lowQuality;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, lowQualityMode ? 1 : 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = !lowQualityMode;
+  atmosphereVfx.setLowQuality(lowQualityMode);
+  root.dataset.graphicsQuality = lowQualityMode ? 'low' : 'high';
+  if (graphicsQualityToggle) {
+    graphicsQualityToggle.textContent = lowQualityMode ? 'Graphics: Low' : 'Graphics: High';
+    graphicsQualityToggle.setAttribute('aria-pressed', String(lowQualityMode));
+    graphicsQualityToggle.setAttribute('aria-label', lowQualityMode ? 'Switch to high graphics quality' : 'Switch to low graphics quality');
+  }
+}
+
+let graphicsQualityToggle: HTMLButtonElement | null = null;
+
 
 const diya = new THREE.Group();
 const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8b5a35, roughness: 0.8 }));
@@ -171,6 +190,23 @@ document.body.appendChild(hud);
 const style = document.createElement('style');
 style.textContent = `body{margin:0;overflow:hidden;background:#080a0a;font-family:system-ui;color:#f4f0e8}.hud{position:fixed;top:22px;left:22px;display:grid;gap:10px;padding:15px 16px;background:#0c0d0de8;border:1px solid #34352f;border-radius:12px;width:min(260px,calc(100vw - 60px));box-sizing:border-box;backdrop-filter:blur(12px)}.hud-heading,.light-readout{display:flex;align-items:center;justify-content:space-between;gap:12px}.hud-heading strong{font-size:12px;letter-spacing:.12em}.hud .connection-state{font-size:10px;color:#b2b5aa;letter-spacing:.08em}.light-readout{align-items:flex-start;flex-direction:column;gap:3px}.light-readout #light{font-size:19px;font-weight:700;color:#f1b85b;font-variant-numeric:tabular-nums}.light-readout #light-stage{font-size:10px;letter-spacing:.09em;color:#b8b3a6}.light-track{height:5px;overflow:hidden;background:#292a26;border-radius:99px}.light-track span{display:block;width:0;height:100%;background:#e8b45b;border-radius:99px;transition:width .35s ease}.hud small{color:#9c9e99;font-size:11px}.prompt{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);padding:12px 16px;background:#0c0d0de8;border:1px solid #30312e;border-radius:8px;max-width:calc(100vw - 36px);box-sizing:border-box;text-align:center;backdrop-filter:blur(12px)}@media(max-width:640px){.hud{top:10px;left:10px;width:min(235px,calc(100vw - 20px));padding:12px}.inventory-panel{right:10px!important;top:10px!important;min-width:unset!important;max-width:128px}.quest-panel{top:auto!important;bottom:86px;left:10px!important;min-width:unset!important;width:min(235px,calc(100vw - 20px));box-sizing:border-box}.dialogue-panel{bottom:14px!important}.prompt{bottom:66px;font-size:12px;padding:9px 12px;max-width:calc(100vw - 20px)}}`;
 document.head.appendChild(style);
+
+if (touchDevice) {
+  graphicsQualityToggle = document.createElement('button');
+  graphicsQualityToggle.type = 'button';
+  graphicsQualityToggle.className = 'graphics-quality-toggle';
+  graphicsQualityToggle.addEventListener('click', () => applyGraphicsQuality(!lowQualityMode));
+  graphicsQualityToggle.textContent = lowQualityMode ? 'Graphics: Low' : 'Graphics: High';
+  graphicsQualityToggle.setAttribute('aria-pressed', String(lowQualityMode));
+  graphicsQualityToggle.setAttribute('aria-label', lowQualityMode ? 'Switch to high graphics quality' : 'Switch to low graphics quality');
+  graphicsQualityToggle.title = 'Reduce rendering load on mobile devices';
+  const graphicsStyle = document.createElement('style');
+  graphicsStyle.textContent = `.graphics-quality-toggle{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px));z-index:80;padding:9px 12px;border:1px solid #6b614e;border-radius:10px;background:#11120fe8;color:#f4f0e8;font:600 11px/1.2 system-ui,sans-serif;letter-spacing:.02em;box-shadow:0 3px 12px #0005;touch-action:manipulation;-webkit-tap-highlight-color:transparent}.graphics-quality-toggle:active{background:#51412a;border-color:#e4b35f}.graphics-quality-toggle:focus-visible{outline:2px solid #e4b35f;outline-offset:3px}`;
+  document.head.appendChild(graphicsStyle);
+  document.body.appendChild(graphicsQualityToggle);
+}
+applyGraphicsQuality(lowQualityMode);
+
 installGameUiStyles();
 const ui = createGameUi();
 const prompt = document.createElement('div');
@@ -378,12 +414,15 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         finalEventActive: boolean;
         remoteAvatarLodEnabled: boolean;
         touchControlsVisible: boolean;
-        rendererInfo: { calls: number; triangles: number; geometries: number; textures: number };
+        graphicsQuality: 'low' | 'high';
+        setGraphicsQuality: (quality: 'low' | 'high') => void;
+        rendererInfo: { calls: number; triangles: number; geometries: number; textures: number; pixelRatio: number; shadowsEnabled: boolean };
       };
     };
   };
   testWindow.__LAST_DIYA_E2E__ = {
     setShadowMapEnabled(enabled) { renderer.shadowMap.enabled = enabled; },
+    setGraphicsQuality(quality) { applyGraphicsQuality(quality === 'low'); },
     async moveTo(x, z) {
       if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error('Test position must be finite');
       const startX = player.position.x;
@@ -424,11 +463,14 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         finalEventActive,
         remoteAvatarLodEnabled,
         touchControlsVisible: Boolean(document.querySelector('.touch-controls')),
+        graphicsQuality: lowQualityMode ? 'low' : 'high',
         rendererInfo: {
           calls: renderer.info.render.calls,
           triangles: renderer.info.render.triangles,
           geometries: renderer.info.memory.geometries,
           textures: renderer.info.memory.textures,
+          pixelRatio: renderer.getPixelRatio(),
+          shadowsEnabled: renderer.shadowMap.enabled,
         },
       };
     },

@@ -41,9 +41,16 @@ export function createAtmosphereVfx(scene: THREE.Scene) {
   });
   const embers = new THREE.Points(emberGeometry, emberMaterial);
   scene.add(embers);
+  let lowQuality = false;
 
   return {
+    setLowQuality(enabled: boolean) {
+      lowQuality = enabled;
+      dust.visible = !enabled;
+      embers.visible = !enabled;
+    },
     update(lightLevel: number, deltaSeconds: number, elapsedSeconds: number) {
+      if (lowQuality) return;
       const dustOpacity = 0.06 + Math.min(lightLevel / 100, 1) * 0.1;
       material.opacity = dustOpacity;
       const positionsAttribute = geometry.getAttribute('position') as THREE.BufferAttribute;
