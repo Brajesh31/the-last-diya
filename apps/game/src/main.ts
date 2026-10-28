@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { clampLightLevel, isNear } from '@the-last-diya/game-core';
-import { NPCS } from '@the-last-diya/game-core/npcs';
+import { clampLightLevel, isNear, NPCS } from '@the-last-diya/game-core';
 import { decodeMessage, encodeMessage } from '@the-last-diya/networking';
 import { LIGHT_LEVEL_START } from '@the-last-diya/shared';
 import type { InventoryItemState, PlayerTransform, QuestState, ServerMessage } from '@the-last-diya/shared';
@@ -56,7 +55,6 @@ document.body.appendChild(hud);
 const style = document.createElement('style');
 style.textContent = `body{margin:0;overflow:hidden;background:#080a0a;font-family:system-ui;color:#f4f0e8}.hud{position:fixed;top:22px;left:22px;display:grid;gap:7px;padding:14px 16px;background:#0c0d0dcc;border:1px solid #30312e;border-radius:10px;min-width:190px}.hud span{font-size:13px;color:#f1b85b}.hud small{color:#9c9e99}.prompt{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);padding:12px 16px;background:#0c0d0de8;border:1px solid #30312e;border-radius:8px}`;
 document.head.appendChild(style);
-const prompt = document.createElement('div'); prompt.className = 'prompt'; prompt.textContent = 'Connecting to the neighbourhood...'; document.body.appendChild(prompt);
 installGameUiStyles();
 const ui = createGameUi();
 
@@ -70,7 +68,6 @@ let lastNetworkSend = 0;
 let reconnectTimer: number | undefined;
 let inventory: InventoryItemState[] = [];
 let quests: QuestState[] = [];
-let dialogueNpc: typeof npcGroups[number] | null = null;
 
 function setLightLevel(value: number) { lightLevel = clampLightLevel(value); document.getElementById('light')!.textContent = `LIGHT ${lightLevel}%`; hemi.intensity = 0.45 + lightLevel / 300; scene.background.set(lightLevel > 0 ? 0x15110b : 0x080a0a); scene.fog = new THREE.Fog(lightLevel > 0 ? 0x15110b : 0x080a0a, 20, 60); diyaLight.intensity = 1.8 + lightLevel / 20; }
 function send(message: Parameters<typeof encodeMessage>[0]) { if (socket?.readyState === WebSocket.OPEN) socket.send(encodeMessage(message)); }
@@ -95,14 +92,11 @@ function connect() {
 }
 function playerTransform(): PlayerTransform { return { x: player.position.x, y: player.position.y, z: player.position.z, rotation: player.rotation.y }; }
 function interact() {
-  const nearDiya = isNear(player.position, diya.position, 1.5);
-  if (nearDiya && !litLocally) { send({ type: 'interact_request', targetId: 'diya-main-street-01' }); return true; }
+  if (isNear(player.position, diya.position, 1.5) && !litLocally) { send({ type: 'interact_request', targetId: 'diya-main-street-01' }); return; }
   const nearest = npcGroups.find((entry) => isNear(player.position, entry.group.position, 1.5));
-  if (nearest) { dialogueNpc = nearest; const line = nearest.npc.dialogue[nearest.index]; ui.showDialogue(line.speaker, line.text); nearest.index = (nearest.index + 1) % nearest.npc.dialogue.length; return true; }
-  return false;
+  if (nearest) { const line = nearest.npc.dialogue[nearest.index]; ui.showDialogue(line.speaker, line.text); nearest.index = (nearest.index + 1) % nearest.npc.dialogue.length; }
 }
-addEventListener('keydown', (event) => { if (event.key.toLowerCase() !== 'e' || event.repeat) return; if (ui.dialogue.hidden === false) { ui.hideDialogue(); return; } interact(); });
-
+addEventListener('keydown', (event) => { if (event.key.toLowerCase() !== 'e' || event.repeat) return; if (!ui.dialogue.hidden) { ui.hideDialogue(); return; } interact(); });
 function update(now: number) {
   const direction = new THREE.Vector3((keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0), 0, (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0));
   if (direction.lengthSq() > 0) { direction.normalize(); player.position.addScaledVector(direction, 0.11); player.rotation.y = Math.atan2(direction.x, direction.z); player.position.x = THREE.MathUtils.clamp(player.position.x, -3.2, 3.2); player.position.z = THREE.MathUtils.clamp(player.position.z, -19, 19); }
