@@ -339,6 +339,8 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         lightLevel: number;
         quests: QuestState[];
         inventory: InventoryItemState[];
+        remotePlayerCount: number;
+        rendererInfo: { calls: number; triangles: number; geometries: number; textures: number };
       };
     };
   };
@@ -372,6 +374,13 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         lightLevel,
         quests: quests.map((quest) => ({ ...quest })),
         inventory: inventory.map((item) => ({ ...item })),
+        remotePlayerCount: remotePlayers.size,
+        rendererInfo: {
+          calls: renderer.info.render.calls,
+          triangles: renderer.info.render.triangles,
+          geometries: renderer.info.memory.geometries,
+          textures: renderer.info.memory.textures,
+        },
       };
     },
   };
