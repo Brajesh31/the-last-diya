@@ -11,8 +11,9 @@ async function waitForText(page, selector, text, label) {
     ({ selector, text }) => (document.querySelector(selector)?.textContent ?? '').toLowerCase().includes(text.toLowerCase()),
     { selector, text },
     { timeout: timeoutMs },
-  ).catch(() => {
-    throw new Error(`Timed out waiting for ${label}; found: "${(page.locator(selector) && await page.locator(selector).textContent().catch(() => 'missing')) ?? 'missing'}"`);
+  ).catch(async () => {
+    const actual = await page.locator(selector).textContent().catch(() => 'missing');
+    throw new Error(`Timed out waiting for ${label}; found: "${actual ?? 'missing'}"`);
   });
 }
 
