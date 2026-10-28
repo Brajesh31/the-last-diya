@@ -12,6 +12,7 @@ import { createEnvironmentStory } from './world/environment-story';
 import { createAtmosphereVfx } from './world/atmosphere-vfx';
 import { createNPCActivity } from './world/npc-activity';
 import { createNPCCharacter } from './world/npc-character';
+import { createPlayerCharacter, type PlayerCharacterVisual } from './world/player-character';
 import { createNeighbourhoodProps } from './world/neighbourhood-props';
 
 const root = document.getElementById('game')!;
@@ -79,12 +80,12 @@ const communityLight = new THREE.PointLight(0xffb84d, 0, 12);
 communityLight.position.copy(communityDiya.position).add(new THREE.Vector3(0, 1, 0));
 scene.add(communityLight);
 
-const player = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 0.8, 4, 12), new THREE.MeshStandardMaterial({ color: 0xbcc7c0 }));
+const playerCharacter = createPlayerCharacter('local-player', true);
+const player = playerCharacter.group;
 player.position.set(0, 0.75, 4);
-player.castShadow = true;
 scene.add(player);
-const remotePlayers = new Map<PlayerId, { mesh: THREE.Mesh; target: THREE.Vector3; rotation: number }>();
-function makeRemotePlayer() { const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.72, 4, 12), new THREE.MeshStandardMaterial({ color: 0x8f9b96 })); mesh.castShadow = true; scene.add(mesh); return mesh; }
+const remotePlayers = new Map<PlayerId, { mesh: THREE.Group; visual: PlayerCharacterVisual; target: THREE.Vector3; rotation: number }>();
+function makeRemotePlayer(id: PlayerId) { return createPlayerCharacter(id, false); }
 
 const npcCharacters = NPCS.map((npc) => createNPCCharacter(npc));
 const npcGroups = NPCS.map((npc, index) => {
@@ -167,13 +168,21 @@ function setLightLevel(value: number) {
   if (targetDark && !darkDistrictUnlocked) prompt.textContent = 'The Dark District is awake. The final path has opened.';
 }
 function send(message: Parameters<typeof encodeMessage>[0]) { if (socket?.readyState === WebSocket.OPEN) socket.send(encodeMessage(message)); }
-function clearRemotePlayers() { for (const remote of remotePlayers.values()) { scene.remove(remote.mesh); remote.mesh.geometry.dispose(); (remote.mesh.material as THREE.Material).dispose(); } remotePlayers.clear(); }
+function clearRemotePlayers() {
+  for (const remote of remotePlayers.values()) {
+    scene.remove(remote.mesh);
+    remote.visual.dispose();
+  }
+  remotePlayers.clear();
+}
 function addRemotePlayer(id: PlayerId, transform: PlayerTransform) {
   if (id === currentPlayerId || remotePlayers.has(id)) return;
-  const mesh = makeRemotePlayer();
+  const visual = makeRemotePlayer(id);
+  const mesh = visual.group;
   mesh.position.set(transform.x, transform.y, transform.z);
   mesh.rotation.y = transform.rotation;
-  remotePlayers.set(id, { mesh, target: new THREE.Vector3(transform.x, transform.y, transform.z), rotation: transform.rotation });
+  scene.add(mesh);
+  remotePlayers.set(id, { mesh, visual, target: new THREE.Vector3(transform.x, transform.y, transform.z), rotation: transform.rotation });
 }
 function applyWorldState(level: number, unlocked: string[]) {
   setLightLevel(level);
@@ -211,7 +220,7 @@ function handleServerMessage(message: ServerMessage) {
   }
   if (message.type === 'player_spawned') { addRemotePlayer(message.playerId, message.transform); return; }
   if (message.type === 'player_state') { const remote = remotePlayers.get(message.playerId); if (remote) { remote.target.set(message.transform.x, message.transform.y, message.transform.z); remote.rotation = message.transform.rotation; } return; }
-  if (message.type === 'player_left') { const remote = remotePlayers.get(message.playerId); if (remote) { scene.remove(remote.mesh); remote.mesh.geometry.dispose(); (remote.mesh.material as THREE.Material).dispose(); remotePlayers.delete(message.playerId); } return; }
+  if (message.type === 'player_left') { const remote = remotePlayers.get(message.playerId); if (remote) { scene.remove(remote.mesh); remote.visual.dispose(); remotePlayers.delete(message.playerId); } return; }
   if (message.type === 'light_update') { setLightLevel(message.level); if (message.level >= 10) litLocally = true; return; }
   if (message.type === 'interaction_result' && message.success) {
     if (message.targetId === 'diya-main-street-01') { litLocally = true; prompt.textContent = 'Diya lit · Shared Light Level +10%'; }
@@ -285,9 +294,11 @@ function update(now: number) {
   const deltaSeconds = Math.min((now - previousTime) / 1000, 0.05);
   previousTime = now;
   const lockedByMemory = memorySequence.isOpen();
+  let playerMoving = false;
   if (!lockedByMemory) {
     const direction = new THREE.Vector3((keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0), 0, (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0));
     if (direction.lengthSq() > 0) {
+      playerMoving = true;
       direction.normalize();
       player.position.addScaledVector(direction, 6 * deltaSeconds);
       player.rotation.y = Math.atan2(direction.x, direction.z);
@@ -302,7 +313,13 @@ function update(now: number) {
   const nearNpc = npcGroups.find((entry) => isNear(player.position, entry.group.position, 1.5));
   if (ui.dialogue.hidden && !lockedByMemory) prompt.textContent = near && !litLocally ? 'Press E to light the diya' : finalNear && !finalEventActive ? 'Press E to light the community diya' : pickup ? `Press E to collect ${pickup.definition.label}` : remote ? 'Press E to share your flame' : nearNpc ? `Press E to talk to ${nearNpc.npc.name}` : darkDistrictUnlocked ? 'The Dark District remembers' : `Shared Light Level ${lightLevel}%`;
   if (now - lastNetworkSend > 100 && !lockedByMemory) { send({ type: 'player_state', transform: playerTransform() }); lastNetworkSend = now; }
-  for (const remoteEntry of remotePlayers.values()) { remoteEntry.mesh.position.lerp(remoteEntry.target, 0.18); remoteEntry.mesh.rotation.y = THREE.MathUtils.lerp(remoteEntry.mesh.rotation.y, remoteEntry.rotation, 0.18); }
+  playerCharacter.update(lightLevel, now / 1000, deltaSeconds, playerMoving);
+  for (const remoteEntry of remotePlayers.values()) {
+    const remoteMoving = remoteEntry.mesh.position.distanceToSquared(remoteEntry.target) > 0.0025;
+    remoteEntry.visual.update(lightLevel, now / 1000, deltaSeconds, remoteMoving);
+    remoteEntry.mesh.position.lerp(remoteEntry.target, 0.18);
+    remoteEntry.mesh.rotation.y = THREE.MathUtils.lerp(remoteEntry.mesh.rotation.y, remoteEntry.rotation, 0.18);
+  }
   npcActivity.update(lightLevel, now / 1000, deltaSeconds);
   npcCharacters.forEach((character, index) => character.update(lightLevel, now / 1000, deltaSeconds, npcGroups[index].active));
   environmentStory.update(lightLevel, now / 1000);
@@ -321,4 +338,4 @@ function update(now: number) {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 connect();
 renderer.setAnimationLoop(update);
-window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); neighbourhoodProps.dispose(); npcCharacters.forEach((character) => character.dispose()); ambientAudio.dispose(); });
+window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); neighbourhoodProps.dispose(); npcCharacters.forEach((character) => character.dispose()); playerCharacter.dispose(); clearRemotePlayers(); ambientAudio.dispose(); });
