@@ -7,6 +7,7 @@ import { createGameUi, installGameUiStyles } from './game-ui';
 import { createCelebration } from './world/celebration';
 import { createMemoryMarker, createMemorySequence } from './world/memory-sequence';
 import { applyNeighbourhoodLight, createNeighbourhoodState } from './world/neighbourhood-state';
+import { createAmbientAudio } from './world/ambient-audio';
 
 const root = document.getElementById('game')!;
 const scene = new THREE.Scene();
@@ -40,6 +41,7 @@ for (let i = -18; i <= 18; i += 6) for (const x of [-6, 6]) {
   scene.add(house);
 }
 const neighbourhood = createNeighbourhoodState(scene);
+const ambientAudio = createAmbientAudio();
 
 const diya = new THREE.Group();
 const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8b5a35, roughness: 0.8 }));
@@ -120,7 +122,10 @@ prompt.textContent = 'Connecting to the neighbourhood...';
 document.body.appendChild(prompt);
 
 const keys = new Set<string>();
-addEventListener('keydown', (event) => keys.add(event.key.toLowerCase()));
+addEventListener('keydown', (event) => {
+  keys.add(event.key.toLowerCase());
+  ambientAudio.start();
+});
 addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
 
 let lightLevel = LIGHT_LEVEL_START;
@@ -137,6 +142,7 @@ let sessionToken = localStorage.getItem('the-last-diya-session') ?? undefined;
 
 function setLightLevel(value: number) {
   lightLevel = clampLightLevel(value);
+  ambientAudio.setLightLevel(lightLevel);
   document.getElementById('light')!.textContent = `LIGHT ${lightLevel}%`;
   const ambience = applyNeighbourhoodLight(neighbourhood, lightLevel);
   hemi.intensity = 0.45 + ambience.targetExposure * 0.25;
@@ -278,6 +284,7 @@ function update(now: number) {
   for (const remoteEntry of remotePlayers.values()) { remoteEntry.mesh.position.lerp(remoteEntry.target, 0.18); remoteEntry.mesh.rotation.y = THREE.MathUtils.lerp(remoteEntry.mesh.rotation.y, remoteEntry.rotation, 0.18); }
   communityFlame.rotation.y += deltaSeconds * 1.5;
   communityFlame.scale.y = 2.2 + Math.sin(now / 120) * 0.25;
+  ambientAudio.update(deltaSeconds);
   memorySequence.update(deltaSeconds);
   celebration.update(deltaSeconds);
   camera.position.lerp(new THREE.Vector3(player.position.x + 6, 6.5, player.position.z + 8), 0.06);
@@ -288,4 +295,4 @@ function update(now: number) {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 connect();
 renderer.setAnimationLoop(update);
-window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); });
+window.addEventListener('beforeunload', () => { ambientAudio.dispose(); memorySequence.dispose(); celebration.dispose(); });
