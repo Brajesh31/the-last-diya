@@ -18,9 +18,14 @@
 - [x] WASD / arrow movement
 - [x] First diya interaction
 - [x] Local Light Level progression
-- [ ] Connect game client to authoritative server
-- [ ] Two browser windows see the same player session
-- [ ] Server-authoritative diya interaction
+- [x] Game client connected to authoritative server
+- [x] Room join and player spawn synchronization
+- [x] Player movement synchronization
+- [x] Server-authoritative diya interaction
+- [x] Server-side interaction distance validation
+- [x] Shared Light Level synchronization
+- [ ] Reconnect state restoration
+- [ ] Automated multiplayer smoke test
 
 ## Phase 2 · Core Gameplay
 - Inventory
@@ -38,6 +43,8 @@
 - Interaction synchronization
 - Reconnect handling
 - Server validation
+- Rate limiting
+- Snapshot/state recovery
 
 ## Phase 4 · Vertical Slice
 - One complete neighbourhood slice
