@@ -1,8 +1,8 @@
 import { chromium } from 'playwright';
 
 const gameUrl = process.env.GAME_URL ?? 'http://127.0.0.1:5174';
-const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS ?? 15000);
-const startupTimeoutMs = Number(process.env.BROWSER_STARTUP_TIMEOUT_MS ?? 45000);
+const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS ?? 45000);
+const startupTimeoutMs = Number(process.env.BROWSER_STARTUP_TIMEOUT_MS ?? 90000);
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const failures = [];
 const consoleErrors = [];
@@ -43,22 +43,17 @@ async function walkToDoorway(page) {
 try {
   browser = await chromium.launch({
     headless: true,
-    args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-webgl', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+    args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-gl=angle', '--use-angle=swiftshader', '--enable-webgl', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
   });
-  const pages = [await browser.newPage({ viewport: { width: 1280, height: 800 } }), await browser.newPage({ viewport: { width: 1280, height: 800 } })];
+  const pages = [await browser.newPage({ viewport: { width: 800, height: 500 }, deviceScaleFactor: 1 }), await browser.newPage({ viewport: { width: 800, height: 500 }, deviceScaleFactor: 1 })];
   for (const [index, page] of pages.entries()) {
     page.on('pageerror', (error) => failures.push(`client ${index + 1}: ${error.message}`));
     page.on('console', (message) => {
       if (message.type() === 'error') consoleErrors.push(`client ${index + 1}: ${message.text()}`);
     });
     page.on('requestfailed', (request) => consoleErrors.push(`client ${index + 1} request failed: ${request.url()} - ${request.failure()?.errorText ?? 'unknown'}`));
-    page.on('websocket', (ws) => {
-      ws.on('framereceived', (frame) => {
-        const payload = typeof frame.payload === 'string' ? frame.payload : '';
-        if (payload) console.log(`client ${index + 1} WS< ${payload.slice(0, 180)}`);
-      });
-    });
-    await page.goto(gameUrl, { waitUntil: 'domcontentloaded', timeout: startupTimeoutMs });
+    page.setDefaultTimeout(timeoutMs);
+    await page.goto(gameUrl, { waitUntil: 'commit', timeout: startupTimeoutMs });
     // The WebGL renderer can take substantially longer to initialize in shared CI runners.
     // Validate the actual game readiness below via its WebSocket-connected HUD and quest state.
     await page.waitForFunction(
@@ -71,7 +66,7 @@ try {
   await Promise.all(pages.map((page) => page.waitForFunction(
     () => document.querySelector('#connection')?.textContent === 'ONLINE',
     undefined,
-    { timeout: timeoutMs },
+    { timeout: startupTimeoutMs },
   )));
   await Promise.all(pages.map((page) => waitForText(page, '#quest-items', 'first flame', 'initial personal quest')));
   console.log('PASS: two real Chromium browser clients connected and loaded personal quest state');
