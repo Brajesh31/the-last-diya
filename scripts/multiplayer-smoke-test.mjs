@@ -16,7 +16,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function openClient(index) {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(url);
-    const client = { socket, id: null, roomSnapshot: null, lightUpdates: 0, joined: false };
+    const client = { socket, id: null, roomSnapshot: null, lightUpdates: 0, joined: false, targetStates: new Set() };
     const timer = setTimeout(() => reject(new Error(`client ${index} connection timeout`)), timeoutMs);
 
     socket.on('open', () => {
@@ -32,6 +32,7 @@ function openClient(index) {
       if (message.type === 'room_snapshot') client.roomSnapshot = message;
       if (message.type === 'light_update') client.lightUpdates += 1;
       if (message.type === 'world_state') client.worldState = message;
+      if (message.type === 'target_state' && message.active) client.targetStates.add(message.targetId);
       if (message.type === 'player_spawned') client.joined = true;
       state.set(index, client);
     });
@@ -67,11 +68,14 @@ try {
     if (!client.worldState || client.worldState.lightLevel < 10) {
       throw new Error(`client ${index} did not observe Light Level >= 10`);
     }
+    if (!client.targetStates.has('diya-main-street-01')) {
+      throw new Error(`client ${index} did not observe the main diya becoming active`);
+    }
   }
 
   console.log(`PASS: ${players} clients joined room ${roomId}`);
   console.log(`PASS: shared Light Level reached ${first.worldState.lightLevel}%`);
-  console.log('PASS: server-authoritative diya interaction propagated');
+  console.log('PASS: server-authoritative diya interaction and target state propagated');
 } finally {
   for (const socket of sockets) socket.close();
 }
