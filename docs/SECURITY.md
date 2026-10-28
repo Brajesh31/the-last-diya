@@ -1,43 +1,32 @@
-# The Last Diya Security Review
+# Server Security Deployment Checklist
 
-## Current automated controls
+## Protections implemented in the vertical slice
 
-- WebSocket frames are capped at 16 KiB by the server.
-- Client messages are decoded and checked against the runtime message contract before gameplay handling.
-- Five invalid messages on one socket trigger WebSocket policy close `1008`.
-- Gameplay actions are rate-limited to one accepted action per 250 ms per player.
-- Player movement is checked for finite coordinates, walkable bounds, movement speed and server-side prop collisions.
-- Gameplay actions are rejected until a socket has joined a room.
-- Room IDs are normalized and constrained before they become room state keys.
-- Room snapshots and shared world state are scoped to the player's room.
-- Session restoration has an expiry window and expired room state is cleaned up.
-- WebSocket heartbeat/pong handling terminates stale connections.
-- Room capacity is capped at 30 players.
-- Automated security regression tests cover malformed JSON, malformed message shapes, repeated invalid messages, oversized frames, unjoined gameplay actions and invalid transforms.
+- WebSocket payloads are capped at 16 KiB and runtime message shapes are validated.
+- Invalid message sequences, excessive per-connection message bursts, idle handshakes and excess per-IP sockets are closed.
+- WebSocket browser Origins can be allowlisted with `WS_ALLOWED_ORIGINS`, as a defense against cross-site WebSocket hijacking.
+- Rooms validate movement bounds, speed, collision areas, interaction distance and room-local state.
+- Disconnected sessions expire after a bounded grace period and room state is cleaned when no players or resumable sessions remain.
 
-## Production deployment requirements
+## Required deployment configuration
 
-These items remain required before a public production launch:
+Set `WS_ALLOWED_ORIGINS` to a comma-separated list of exact browser origins, for example:
 
-1. Terminate WebSockets over TLS (`wss://`) behind the production edge/proxy.
-2. Apply connection-rate and concurrent-connection limits at the edge, preferably keyed by authenticated account and source IP rather than relying only on the game process.
-3. Configure an explicit WebSocket `Origin` allowlist at the edge/server for the production game domain.
-4. Add real authentication/session binding before exposing persistent accounts or valuable progression.
-5. Keep secrets and database credentials outside the client bundle and repository.
-6. Add structured server logs, error reporting, alerting and dashboards for connection failures, policy closes, room saturation and abnormal message rates.
-7. Define retention and privacy rules for player identifiers, telemetry and future account data.
-8. Run a production-like load test through the actual TLS/proxy path before launch.
-9. Add dependency and container/image scanning to the deployment pipeline.
-10. Establish incident response, rollback and credential-rotation procedures.
-
-## Security regression command
-
-```bash
-npm run test:server-security
+```text
+WS_ALLOWED_ORIGINS=https://play.example.com,https://www.play.example.com
 ```
 
-The GitHub Actions workflow `.github/workflows/server-security-test.yml` runs this suite on relevant server and networking changes.
+In `NODE_ENV=production`, browser-origin requests are rejected if the allowlist is missing. Origin checks are not authentication: native clients can omit or spoof the header. The current random session token is a short-lived bearer credential for reconnect, not an account identity or an authorization system.
 
-## Scope note
+The production deployment must terminate TLS and expose the game over WSS. If the app is hosted behind a reverse proxy, configure connection limits with its network topology in mind. The current limiter keys on the TCP peer address and intentionally does not trust arbitrary `X-Forwarded-For` values.
 
-Passing the automated regression suite means the currently implemented server invariants are covered by repeatable tests. It is not a penetration test and does not by itself establish production security readiness.
+## Still required before public launch
+
+- Decide whether rooms are public, invite-only or tied to authenticated accounts.
+- If accounts/invitations are introduced, bind reconnect tokens to an authenticated identity and rotate/revoke them safely.
+- Review TLS termination, proxy headers, WebSocket origin configuration and platform-level DDoS controls.
+- Add central logs, alerts, abuse metrics, retention policy and incident procedures.
+- Re-run security and load tests against the deployed staging environment.
+- Review privacy requirements for identifiers, telemetry and player-generated content.
+
+The current controls reduce common connection abuse. They do not replace authentication, infrastructure-level rate limiting, production monitoring or an independent security review.

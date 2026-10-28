@@ -6,8 +6,8 @@ const timeoutMs = Number(process.env.SECURITY_TIMEOUT_MS ?? 5000);
 const clients = [];
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function openClient() {
-  const socket = new WebSocket(url);
+async function openClient(options = {}) {
+  const socket = new WebSocket(url, options.origin ? { headers: { Origin: options.origin } } : {});
   const client = { socket, messages: [], closed: null, lastError: null };
   clients.push(client);
   socket.on('message', (raw) => {
@@ -51,6 +51,38 @@ async function closeClient(client) {
     client.socket.once('close', () => { clearTimeout(timer); resolve(); });
     if (client.socket.readyState === WebSocket.OPEN) client.socket.close();
   });
+}
+
+async function rejectedOriginStatus(origin) {
+  const socket = new WebSocket(url, { headers: { Origin: origin } });
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      socket.terminate();
+      reject(new Error('Timed out waiting for origin policy response'));
+    }, timeoutMs);
+    socket.once('unexpected-response', (_request, response) => {
+      clearTimeout(timer);
+      const status = response.statusCode ?? 0;
+      response.resume();
+      resolve(status);
+    });
+    socket.once('open', () => {
+      clearTimeout(timer);
+      socket.close();
+      resolve(101);
+    });
+    socket.once('error', () => {
+      // A rejected HTTP upgrade emits an error after unexpected-response. That event
+      // resolves the promise with the server's HTTP status before this handler fires.
+    });
+  });
+}
+
+async function waitForClose(client, label, timeout = timeoutMs) {
+  const started = Date.now();
+  while (!client.closed && Date.now() - started < timeout) await wait(10);
+  assert.ok(client.closed, label + ': socket did not close');
+  return client.closed;
 }
 
 try {
@@ -114,6 +146,48 @@ try {
     'reject non-numeric player transform');
   assert.equal(transformError.code, 'INVALID_TRANSFORM');
   console.log('PASS room identifiers are normalized and non-numeric transforms are rejected');
+
+  // Browser Origin policy is configured explicitly by the security CI workflow.
+  const allowedOriginClient = await openClient({ origin: 'https://game.example.test' });
+  assert.equal(allowedOriginClient.socket.readyState, WebSocket.OPEN);
+  await closeClient(allowedOriginClient);
+  assert.equal(await rejectedOriginStatus('https://evil.example'), 403);
+  console.log('PASS configured browser Origin is allowed and unlisted Origin is rejected with HTTP 403');
+
+  // A socket that never joins a room must not occupy server resources indefinitely.
+  const abandonedHandshake = await openClient();
+  const handshakeClose = await waitForClose(abandonedHandshake, 'handshake timeout',
+    Number(process.env.HANDSHAKE_TIMEOUT_MS ?? 10_000) + 1000);
+  assert.equal(handshakeClose.code, 1008);
+  assert.match(handshakeClose.reason, /handshake timeout/i);
+  console.log('PASS idle handshakes are closed with policy code 1008');
+
+  // Flood a joined connection beyond its configured message budget.
+  const noisyClient = await openClient();
+  noisyClient.socket.send(JSON.stringify({ type: 'hello', clientVersion: 'server-security-test' }));
+  noisyClient.socket.send(JSON.stringify({ type: 'join_room', roomId: 'message-rate-test' }));
+  await waitForMessage(noisyClient, (message) => message.type === 'session_assigned', 0, 'message rate test session');
+  for (let index = 0; index < Number(process.env.MAX_MESSAGES_PER_WINDOW ?? 240) + 20; index += 1) {
+    if (noisyClient.socket.readyState !== WebSocket.OPEN) break;
+    noisyClient.socket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+  }
+  const noisyClose = await waitForClose(noisyClient, 'message rate limit');
+  assert.equal(noisyClose.code, 1008);
+  assert.match(noisyClose.reason, /message rate limit/i);
+  console.log('PASS message bursts above the per-connection budget are closed');
+
+  // Fill the test-configured per-IP budget and verify the next socket is shed.
+  const connectionCap = Number(process.env.MAX_CONNECTIONS_PER_IP ?? 40);
+  while (clients.filter((client) => client.socket.readyState === WebSocket.OPEN).length < connectionCap) {
+    await openClient();
+    await wait(20);
+  }
+  await wait(50);
+  const overflowClient = await openClient();
+  const overflowClose = await waitForClose(overflowClient, 'per-IP connection cap');
+  assert.equal(overflowClose.code, 1013);
+  assert.match(overflowClose.reason, /per-ip connection limit/i);
+  console.log('PASS per-IP connection cap rejects excess sockets with close code 1013');
 
   console.log('PASS server security regression suite');
 } catch (error) {

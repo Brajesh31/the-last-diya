@@ -28,6 +28,10 @@ jobs:
     env:
       SESSION_GRACE_MS: '1200'
       HEARTBEAT_INTERVAL_MS: '500'
+      WS_ALLOWED_ORIGINS: 'https://game.example.test'
+      MAX_CONNECTIONS_PER_IP: '12'
+      HANDSHAKE_TIMEOUT_MS: '1500'
+      MAX_MESSAGES_PER_WINDOW: '240'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

@@ -9,7 +9,32 @@ import { decodeMessage, encodeMessage } from '@the-last-diya/networking';
 
 const port = Number(process.env.PORT ?? 8787);
 const http = createServer((_, response) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ name: 'the-last-diya-server', status: 'ok', phase: 'vertical-slice' })); });
-const wss = new WebSocketServer({ server: http, maxPayload: 16 * 1024, perMessageDeflate: false });
+function readBoundedInteger(name: string, fallback: number, min: number, max: number): number {
+  const raw = Number(process.env[name]);
+  return Number.isInteger(raw) && raw >= min && raw <= max ? raw : fallback;
+}
+const allowedWsOrigins = new Set(
+  (process.env.WS_ALLOWED_ORIGINS ?? '').split(',').map((origin) => origin.trim()).filter(Boolean),
+);
+const MAX_CONNECTIONS_PER_IP = readBoundedInteger('MAX_CONNECTIONS_PER_IP', 40, 1, 512);
+const HANDSHAKE_TIMEOUT_MS = readBoundedInteger('HANDSHAKE_TIMEOUT_MS', 10_000, 500, 120_000);
+const MESSAGE_RATE_WINDOW_MS = readBoundedInteger('MESSAGE_RATE_WINDOW_MS', 10_000, 1_000, 60_000);
+const MAX_MESSAGES_PER_WINDOW = readBoundedInteger('MAX_MESSAGES_PER_WINDOW', 240, 50, 5_000);
+if (process.env.NODE_ENV === 'production' && allowedWsOrigins.size === 0) {
+  console.warn('SECURITY_CONFIG WebSocket browser origins are denied until WS_ALLOWED_ORIGINS is configured.');
+}
+const wss = new WebSocketServer({
+  server: http,
+  maxPayload: 16 * 1024,
+  perMessageDeflate: false,
+  verifyClient: (info, callback) => {
+    // Origin validation is a browser cross-site WebSocket defense, not user authentication.
+    if (!info.origin) return callback(true);
+    if (allowedWsOrigins.size === 0 && process.env.NODE_ENV !== 'production') return callback(true);
+    if (allowedWsOrigins.has(info.origin)) return callback(true);
+    callback(false, 403, 'WebSocket origin is not allowed');
+  },
+});
 type Player = { id: string; sessionToken: string; roomId: string; socket: WebSocket; transform: PlayerTransform; inventory: InventoryItemState[]; quests: QuestState[]; lastStateAt: number; lastActionAt: number; lastPongAt: number };
 type DisconnectedSession = Omit<Player, 'socket' | 'lastStateAt' | 'lastActionAt' | 'lastPongAt'> & { expiresAt: number };
 const players = new Map<WebSocket, Player>();
@@ -309,9 +334,44 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
   if (message.type === 'ping') { player.lastPongAt = Date.now(); send(socket, { type: 'pong', timestamp: message.timestamp }); }
 }
 
-wss.on('connection', (socket) => {
+const connectionsByIp = new Map<string, number>();
+
+wss.on('connection', (socket, request) => {
+  const remoteIp = request.socket.remoteAddress ?? 'unknown';
+  const currentIpConnections = connectionsByIp.get(remoteIp) ?? 0;
+  let connectionTracked = false;
+  let handshakeTimer: NodeJS.Timeout | undefined;
+  let helloReceived = false;
   let invalidMessageCount = 0;
+  let messageWindowStartedAt = Date.now();
+  let messageCountInWindow = 0;
+
+  if (currentIpConnections >= MAX_CONNECTIONS_PER_IP) {
+    socket.close(1013, 'Per-IP connection limit exceeded');
+  } else {
+    connectionsByIp.set(remoteIp, currentIpConnections + 1);
+    connectionTracked = true;
+    handshakeTimer = setTimeout(() => {
+      if (!players.has(socket) && socket.readyState === WebSocket.OPEN) {
+        socket.close(1008, 'Handshake timeout');
+      }
+    }, HANDSHAKE_TIMEOUT_MS);
+    handshakeTimer.unref();
+  }
+
   socket.on('message', (raw) => {
+    if (!connectionTracked) return;
+    const now = Date.now();
+    if (now - messageWindowStartedAt >= MESSAGE_RATE_WINDOW_MS) {
+      messageWindowStartedAt = now;
+      messageCountInWindow = 0;
+    }
+    messageCountInWindow += 1;
+    if (messageCountInWindow > MAX_MESSAGES_PER_WINDOW) {
+      socket.close(1008, 'Message rate limit exceeded');
+      return;
+    }
+
     const message = decodeMessage(raw.toString());
     if (!message || !isClientMessage(message)) {
       invalidMessageCount += 1;
@@ -319,10 +379,48 @@ wss.on('connection', (socket) => {
       if (invalidMessageCount >= 5 && socket.readyState === WebSocket.OPEN) socket.close(1008, 'Invalid message sequence');
       return;
     }
+
+    if (message.type === 'hello') {
+      if (helloReceived) {
+        socket.close(1008, 'Duplicate hello');
+        return;
+      }
+      helloReceived = true;
+    } else if (message.type === 'join_room' && !helloReceived) {
+      send(socket, { type: 'error', code: 'HELLO_REQUIRED', message: 'Send hello before joining a room' });
+      return;
+    }
+
     handleMessage(socket, message);
+    if (players.has(socket) && handshakeTimer) {
+      clearTimeout(handshakeTimer);
+      handshakeTimer = undefined;
+    }
   });
+
   socket.on('pong', () => { const player = players.get(socket); if (player) player.lastPongAt = Date.now(); });
-  socket.on('close', () => { const player = players.get(socket); if (!player) return; players.delete(socket); sessions.set(player.sessionToken, { id: player.id, sessionToken: player.sessionToken, roomId: player.roomId, transform: player.transform, inventory: player.inventory, quests: player.quests, expiresAt: Date.now() + SESSION_GRACE_MS }); broadcastRoom(player.roomId, { type: 'player_left', playerId: player.id }); });
+  socket.on('close', () => {
+    if (handshakeTimer) clearTimeout(handshakeTimer);
+    if (connectionTracked) {
+      const remaining = Math.max(0, (connectionsByIp.get(remoteIp) ?? 1) - 1);
+      if (remaining === 0) connectionsByIp.delete(remoteIp);
+      else connectionsByIp.set(remoteIp, remaining);
+      connectionTracked = false;
+    }
+    const player = players.get(socket);
+    if (!player) return;
+    players.delete(socket);
+    sessions.set(player.sessionToken, {
+      id: player.id,
+      sessionToken: player.sessionToken,
+      roomId: player.roomId,
+      transform: player.transform,
+      inventory: player.inventory,
+      quests: player.quests,
+      expiresAt: Date.now() + SESSION_GRACE_MS,
+    });
+    broadcastRoom(player.roomId, { type: 'player_left', playerId: player.id });
+  });
   socket.on('error', () => socket.close());
 });
 const heartbeat = setInterval(() => {
