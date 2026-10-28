@@ -62,7 +62,7 @@ jobs:
         env:
           GAME_URL: http://127.0.0.1:5174/?e2e=1
           BROWSER_PERF_CLIENTS: '6'
-          BROWSER_PERF_SAMPLE_MS: '6000'
+          BROWSER_PERF_SAMPLE_MS: '3000'
         run: npm run test:browser:perf
       - name: Service logs
         if: always()

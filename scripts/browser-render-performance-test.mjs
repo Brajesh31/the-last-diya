@@ -2,7 +2,7 @@ import { chromium } from 'playwright';
 
 const gameUrl = process.env.GAME_URL ?? 'http://127.0.0.1:5174/?e2e=1';
 const clientCount = Number(process.env.BROWSER_PERF_CLIENTS ?? 6);
-const sampleDurationMs = Number(process.env.BROWSER_PERF_SAMPLE_MS ?? 6000);
+const sampleDurationMs = Number(process.env.BROWSER_PERF_SAMPLE_MS ?? 3000);
 const startupTimeoutMs = Number(process.env.BROWSER_STARTUP_TIMEOUT_MS ?? 60000);
 const failures = [];
 const consoleErrors = [];
@@ -61,9 +61,13 @@ try {
   if (identities.some((entry) => !entry.webglAvailable)) throw new Error('WebGL2 was not available in every game client');
   console.log('PASS ' + clientCount + ' Chromium clients connected with ' + (clientCount - 1) + ' remote avatars each');
 
-  // Move every local avatar while sampling real requestAnimationFrame intervals.
-  await Promise.all(pages.map((page) => page.keyboard.down('w')));
-  const metrics = await Promise.all(pages.map(async (page, index) => page.evaluate(async ({ sampleDurationMs, index }) => {
+  // Keep every client connected, but sample one foreground page at a time. Chromium throttles background tabs.
+  const metrics = [];
+  for (const [index, page] of pages.entries()) {
+    await page.bringToFront();
+    await page.keyboard.down('w');
+    try {
+      const metric = await page.evaluate(async ({ sampleDurationMs, index }) => {
     const frameTimes = [];
     const start = performance.now();
     await new Promise((resolve) => {
@@ -94,9 +98,14 @@ try {
       renderer: stats?.rendererInfo ?? null,
       jsHeapMb: heapBytes === null ? null : Number((heapBytes / 1024 / 1024).toFixed(1)),
       webglAvailable: !!document.querySelector('#game canvas')?.getContext('webgl2'),
+      visibilityState: document.visibilityState,
     };
-  }, { sampleDurationMs, index })));
-  await Promise.all(pages.map((page) => page.keyboard.up('w')));
+      }, { sampleDurationMs, index });
+      metrics.push(metric);
+    } finally {
+      await page.keyboard.up('w');
+    }
+  }
 
   if (failures.length) throw new Error('Browser runtime errors: ' + failures.join('; '));
   if (consoleErrors.length) throw new Error('Browser console/request errors: ' + consoleErrors.join(' | '));

@@ -118,7 +118,7 @@
 - [x] Server rejects movement through benches, market stalls and the temple platform
 - [x] Automated 30-client movement broadcast latency benchmark with server CPU, memory and event-loop telemetry
 - [x] Initial CI profile recorded: 30 clients, 12 ticks, 10,440 / 10,440 peer deliveries, p50 4.03 ms, p95 10.71 ms, p99 12.86 ms, maximum 16.07 ms
-- [ ] Browser rendering benchmark with multiple remote avatars and frame-time reporting
+- [ ] Browser rendering benchmark with multiple remote avatars and foreground-tab frame-time reporting
 - [ ] Performance profiling
 - [ ] Server and networking security validation
 - [ ] Monitoring and error reporting
