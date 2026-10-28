@@ -8,10 +8,13 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const socket = new WebSocket(url);
 const received = [];
 let lastActionAt = 0;
+let currentTransform = null;
 
 socket.on('message', (raw) => {
   try {
-    received.push(JSON.parse(raw.toString()));
+    const message = JSON.parse(raw.toString());
+    if (message.type === 'session_assigned') currentTransform = message.transform;
+    received.push(message);
   } catch {
     // Ignore malformed messages in the test harness; assertions will time out clearly.
   }
@@ -42,8 +45,20 @@ async function waitFor(type, predicate = () => true) {
 }
 
 async function moveTo(x, z) {
-  send({ type: 'player_state', transform: { x, y: 0.75, z, rotation: 0 } });
-  await wait(120);
+  if (!currentTransform) throw new Error('No authoritative spawn transform received');
+  const start = { ...currentTransform };
+  const distance = Math.hypot(x - start.x, z - start.z);
+  const steps = Math.max(1, Math.ceil(distance / 0.35));
+  for (let index = 1; index <= steps; index += 1) {
+    await wait(120);
+    currentTransform = {
+      x: start.x + (x - start.x) * index / steps,
+      y: 0.75,
+      z: start.z + (z - start.z) * index / steps,
+      rotation: 0,
+    };
+    send({ type: 'player_state', transform: currentTransform });
+  }
 }
 
 try {

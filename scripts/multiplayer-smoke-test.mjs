@@ -29,6 +29,8 @@ function openClient(index) {
     const client = {
       socket,
       id: null,
+      transform: null,
+      remoteTransforms: new Map(),
       roomSnapshot: null,
       worldState: null,
       quests: [],
@@ -48,8 +50,14 @@ function openClient(index) {
 
     socket.on('message', (raw) => {
       const message = JSON.parse(raw.toString());
-      if (message.type === 'session_assigned') client.id = message.playerId;
-      if (message.type === 'room_snapshot') client.roomSnapshot = message;
+      if (message.type === 'session_assigned') { client.id = message.playerId; client.transform = message.transform; }
+      if (message.type === 'room_snapshot') {
+        client.roomSnapshot = message;
+        for (const player of message.players ?? []) client.remoteTransforms.set(player.playerId, player.transform);
+      }
+      if (message.type === 'player_spawned') client.remoteTransforms.set(message.playerId, message.transform);
+      if (message.type === 'player_state') client.remoteTransforms.set(message.playerId, message.transform);
+      if (message.type === 'player_left') client.remoteTransforms.delete(message.playerId);
       if (message.type === 'light_update') client.lightUpdates += 1;
       if (message.type === 'world_state') client.worldState = message;
       if (message.type === 'quest_update') client.quests = message.quests;
@@ -73,6 +81,24 @@ function hasQuestAvailable(client, id) {
   return client.quests.some((quest) => quest.id === id && quest.status === 'available');
 }
 
+async function moveClientTo(client, x, z, rotation = 0) {
+  if (!client.transform) throw new Error(`client ${client.id ?? 'unknown'} has no spawn transform`);
+  const start = { ...client.transform };
+  const distance = Math.hypot(x - start.x, z - start.z);
+  const steps = Math.max(1, Math.ceil(distance / 0.35));
+  for (let index = 1; index <= steps; index += 1) {
+    await wait(120);
+    const transform = {
+      x: start.x + (x - start.x) * index / steps,
+      y: 0.75,
+      z: start.z + (z - start.z) * index / steps,
+      rotation,
+    };
+    send(client, { type: 'player_state', transform });
+    client.transform = transform;
+  }
+}
+
 try {
   console.log(`Smoke test: ${players} players -> ${url}`);
   for (let index = 0; index < players; index += 1) {
@@ -92,8 +118,7 @@ try {
   const second = state.get(1);
 
   // Player one activates the shared world target.
-  send(first, { type: 'player_state', transform: { x: 0, y: 0.75, z: -4, rotation: 0 } });
-  await wait(150);
+  await moveClientTo(first, 0, -4);
   send(first, { type: 'interact_request', targetId: 'diya-main-street-01' });
   await waitUntil('shared Light Level and active diya', () =>
     [...state.values()].every((client) =>
@@ -101,15 +126,13 @@ try {
 
   // The second player must still be able to complete their own first-flame quest
   // after the world diya has already been lit by player one.
-  send(second, { type: 'player_state', transform: { x: 0, y: 0.75, z: -4, rotation: 0 } });
-  await wait(150);
+  await moveClientTo(second, 0, -4);
   send(second, { type: 'interact_request', targetId: 'diya-main-street-01' });
   await waitUntil('second player first-flame quest completion', () => isQuestCompleted(second, 'first-flame'));
 
   // Pickups are personal quest objects: both players can collect the same doorway objective.
-  send(first, { type: 'player_state', transform: { x: -2.5, y: 0.75, z: -1, rotation: 0 } });
-  send(second, { type: 'player_state', transform: { x: -2.5, y: 0.75, z: -1, rotation: 0 } });
-  await wait(150);
+  await moveClientTo(first, -2.5, -1);
+  await moveClientTo(second, -2.5, -1);
   await wait(300);
   send(first, { type: 'pickup_request', targetId: 'sharma-doorway-01' });
   send(second, { type: 'pickup_request', targetId: 'sharma-doorway-01' });
