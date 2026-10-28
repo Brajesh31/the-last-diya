@@ -44,6 +44,8 @@
 - [x] Flame sharing between nearby players
 - [x] Shared world progression state
 - [x] Final Dark District interaction
+- [x] Personal quest progression remains available after shared world objectives are completed
+- [x] Quest pickups are scoped per player and restored in their room snapshot
 - [ ] Extended quest content beyond the five-quest vertical slice
 
 ## Phase 3 · Multiplayer Prototype | In progress
@@ -60,7 +62,8 @@
 - [x] Automated multiplayer smoke-test script
 - [x] 2 / 5 / 10-player load-test script
 - [x] GitHub Actions workflows for multiplayer smoke and load tests
-- [ ] Get multiplayer smoke and load-test workflows passing on the current branch
+- [x] Multiplayer smoke workflow passes for shared world state and per-player quest progress
+- [ ] Get multiplayer load-test workflow passing on the current branch
 - [ ] Validate 20 / 30-player sessions
 
 ## Phase 4 · Vertical Slice | In progress
@@ -83,6 +86,9 @@
 - [x] Shared Light Level progress meter and neighbourhood stage label in the HUD
 - [x] Persistent main diya state restored from room snapshots
 - [x] Main diya activation broadcast to all players in a room
+- [x] Player collision against major benches, market stalls and temple-area props
+- [x] Axis-separated movement allows sliding around blocked props
+- [x] Interaction hotspots remain reachable around market stalls and temple platform
 - [ ] Replace prototype geometry with authored, final-quality character and environment assets
 - [ ] Playtest full quest progression with two real browser clients
 
@@ -98,6 +104,9 @@
 - [x] Workspace type-check and build workflow added
 - [x] Workspace type-check and production build pass in GitHub Actions
 - [x] Expanded multiplayer smoke test verifies main diya target-state synchronization
+- [x] Expanded multiplayer smoke test verifies both players can progress their personal quest chain
+- [x] Automated player collision test passes
+- [x] Automated five-quest vertical slice test passes
 - [ ] Green multiplayer load tests
 - [ ] Performance profiling
 - [ ] Server and networking security validation
@@ -122,4 +131,4 @@
 Two browser windows join the same world. One player lights a diya, the other sees the change, and the shared Light Level updates. The street brightens, NPCs react, players can share flame and collect quest items, the Dark District unlocks at 90%, and both players can reach the final event.
 
 ### Validation note
-The character and environment systems are implemented as procedural prototypes. The automated workspace and multiplayer workflows are being used to expose and fix existing TypeScript and CI setup issues; do not treat the vertical slice as validated until those checks pass and the quest chain is playtested in two browser clients.
+The character and environment systems are implemented as procedural prototypes. Workspace type-check/build, two-player state and personal-quest tests, collision tests, and the automated five-quest chain currently pass in GitHub Actions. A visual playtest in two real browser windows, multiplayer load tests, and final-art replacement remain outstanding.
