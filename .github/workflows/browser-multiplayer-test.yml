@@ -66,6 +66,8 @@ jobs:
           exit 1
 
       - name: Run two-client browser playtest
+        env:
+          GAME_URL: http://127.0.0.1:5174/?e2e=1
         run: npm run test:browser:multiplayer
 
       - name: Service logs

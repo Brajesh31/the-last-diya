@@ -326,6 +326,47 @@ addEventListener('keydown', (event) => {
   interact();
 });
 
+// A narrow deterministic test bridge is exposed only in Vite development mode and only
+// when explicitly requested by the browser E2E workflow. It is never bundled into production.
+if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e') === '1') {
+  const testWindow = window as Window & {
+    __LAST_DIYA_E2E__?: {
+      moveTo: (x: number, z: number) => void;
+      interact: () => void;
+      getState: () => {
+        playerId: PlayerId | null;
+        position: PlayerTransform;
+        lightLevel: number;
+        quests: QuestState[];
+        inventory: InventoryItemState[];
+      };
+    };
+  };
+  testWindow.__LAST_DIYA_E2E__ = {
+    moveTo(x, z) {
+      if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error('Test position must be finite');
+      const previous = player.position.clone();
+      player.position.set(
+        THREE.MathUtils.clamp(x, -3.2, 3.2),
+        0.75,
+        THREE.MathUtils.clamp(z, darkDistrictUnlocked ? -27 : -19, 19),
+      );
+      player.rotation.y = Math.atan2(player.position.x - previous.x, player.position.z - previous.z);
+      send({ type: 'player_state', transform: playerTransform() });
+    },
+    interact,
+    getState() {
+      return {
+        playerId: currentPlayerId,
+        position: playerTransform(),
+        lightLevel,
+        quests: quests.map((quest) => ({ ...quest })),
+        inventory: inventory.map((item) => ({ ...item })),
+      };
+    },
+  };
+}
+
 const moveDirection = new THREE.Vector3();
 const cameraDesiredPosition = new THREE.Vector3();
 const cameraLookTarget = new THREE.Vector3();
