@@ -28,6 +28,30 @@ function send(client, message) {
   client.socket.send(JSON.stringify(message));
 }
 
+async function moveClientTo(client, x, z, rotation, observers, label) {
+  const started = Date.now();
+  let lastSentAt = 0;
+  while (Date.now() - started < timeoutMs) {
+    if (Date.now() - lastSentAt >= 120) {
+      send(client, {
+        type: 'player_state',
+        transform: { x, y: 0.75, z, rotation },
+      });
+      lastSentAt = Date.now();
+    }
+    const synchronized = observers.every((observer) => {
+      const transform = observer.remoteTransforms.get(client.id);
+      return transform &&
+        Math.abs(transform.x - x) < 0.001 &&
+        Math.abs(transform.z - z) < 0.001 &&
+        Math.abs(transform.rotation - rotation) < 0.001;
+    });
+    if (synchronized) return;
+    await wait(25);
+  }
+  throw new Error(`timeout waiting for ${label} after retrying movement`);
+}
+
 function connectClient(index, roomId, sessionToken) {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(url);
@@ -155,17 +179,7 @@ async function runScenario(playerCount) {
 
     const first = clients[0];
     // Validate server-to-client movement synchronization, not only remote spawn lists.
-    send(first, {
-      type: 'player_state',
-      transform: { x: 0, y: 0.75, z: -4, rotation: 0.25 },
-    });
-    await waitUntil('remote movement update on every peer', () =>
-      clients.slice(1).every((client) => {
-        const transform = client.remoteTransforms.get(first.id);
-        return transform && Math.abs(transform.x) < 0.001 &&
-          Math.abs(transform.z + 4) < 0.001 &&
-          Math.abs(transform.rotation - 0.25) < 0.001;
-      }));
+    await moveClientTo(first, 0, -4, 0.25, clients.slice(1), 'remote movement update on every peer');
 
     send(first, { type: 'interact_request', targetId: 'diya-main-street-01' });
     await waitUntil('shared light and main diya state on all clients', () =>
@@ -177,16 +191,7 @@ async function runScenario(playerCount) {
       questIs(first, 'first-flame', 'completed'));
 
     // Give player one a completed quest and a non-default inventory before reconnecting.
-    send(first, {
-      type: 'player_state',
-      transform: { x: -2.5, y: 0.75, z: -1, rotation: 0 },
-    });
-    await waitUntil('doorway position synchronized to peers', () =>
-      clients.slice(1).every((client) => {
-        const transform = client.remoteTransforms.get(first.id);
-        return transform && Math.abs(transform.x + 2.5) < 0.001 &&
-          Math.abs(transform.z + 1) < 0.001;
-      }));
+    await moveClientTo(first, -2.5, -1, 0, clients.slice(1), 'doorway position synchronized to peers');
     // Respect the server's action throttle after confirming the move was accepted.
     await wait(300);
     send(first, { type: 'pickup_request', targetId: 'sharma-doorway-01' });
