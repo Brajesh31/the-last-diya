@@ -7,6 +7,15 @@ on:
         description: Comma-separated player counts to test
         required: false
         default: '2,5,10'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/server/**'
+      - 'packages/shared/**'
+      - 'packages/game-core/**'
+      - 'packages/networking/**'
+      - 'scripts/multiplayer-load-test.mjs'
+      - '.github/workflows/multiplayer-load-test.yml'
   pull_request:
     paths:
       - 'apps/server/**'
