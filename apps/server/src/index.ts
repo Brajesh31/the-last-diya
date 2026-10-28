@@ -9,54 +9,26 @@ import { decodeMessage, encodeMessage } from '@the-last-diya/networking';
 const port = Number(process.env.PORT ?? 8787);
 const http = createServer((_, response) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ name: 'the-last-diya-server', status: 'ok', phase: 'multiplayer-prototype' })); });
 const wss = new WebSocketServer({ server: http });
-
 type Player = { id: string; sessionToken: string; roomId: string; socket: WebSocket; transform: PlayerTransform; inventory: InventoryItemState[]; quests: QuestState[]; lastStateAt: number; lastActionAt: number; lastPongAt: number };
 type DisconnectedSession = Omit<Player, 'socket' | 'lastStateAt' | 'lastActionAt' | 'lastPongAt'> & { expiresAt: number };
-const players = new Map<WebSocket, Player>();
-const sessions = new Map<string, DisconnectedSession>();
-const roomLight = new Map<string, number>();
-const litTargets = new Set<string>();
-const pickedTargets = new Set<string>();
-const DIYA_TARGET_ID = 'diya-main-street-01';
-const DIYA_POSITION = { x: 0, z: -4 };
-const INTERACTION_RADIUS = 2.2;
-const FLAME_SHARE_RADIUS = 2.5;
-const STATE_INTERVAL_MS = 80;
-const ACTION_INTERVAL_MS = 250;
-const HEARTBEAT_INTERVAL_MS = 15_000;
-const HEARTBEAT_TIMEOUT_MS = 45_000;
-const SESSION_GRACE_MS = 60_000;
+const players = new Map<WebSocket, Player>(); const sessions = new Map<string, DisconnectedSession>(); const roomLight = new Map<string, number>(); const litTargets = new Set<string>(); const pickedTargets = new Set<string>();
+const DIYA_TARGET_ID = 'diya-main-street-01'; const DIYA_POSITION = { x: 0, z: -4 }; const INTERACTION_RADIUS = 2.2; const FLAME_SHARE_RADIUS = 2.5; const STATE_INTERVAL_MS = 80; const ACTION_INTERVAL_MS = 250; const HEARTBEAT_INTERVAL_MS = 15_000; const HEARTBEAT_TIMEOUT_MS = 45_000; const SESSION_GRACE_MS = 60_000;
 const spawnTransform: PlayerTransform = { x: 0, y: 0.75, z: 4, rotation: 0 };
-const PICKUPS: Record<string, { x: number; z: number; itemId: ItemId; quantity: number }> = {
-  'sharma-doorway-01': { x: -2.5, z: -1, itemId: 'wick', quantity: 2 },
-  'market-stall-01': { x: 2.5, z: -8, itemId: 'diya', quantity: 1 },
-  'market-stall-02': { x: -2.5, z: -9.5, itemId: 'diya', quantity: 1 },
-  'market-stall-03': { x: 2.5, z: -11, itemId: 'diya', quantity: 1 },
-  'temple-memory-01': { x: 2.5, z: -17, itemId: 'memory_fragment', quantity: 1 },
-};
+const PICKUPS: Record<string, { x: number; z: number; itemId: ItemId; quantity: number }> = { 'sharma-doorway-01': { x: -2.5, z: -1, itemId: 'wick', quantity: 2 }, 'market-stall-01': { x: 2.5, z: -8, itemId: 'diya', quantity: 1 }, 'market-stall-02': { x: -2.5, z: -9.5, itemId: 'diya', quantity: 1 }, 'market-stall-03': { x: 2.5, z: -11, itemId: 'diya', quantity: 1 }, 'temple-memory-01': { x: 2.5, z: -17, itemId: 'memory_fragment', quantity: 1 } };
 function send(socket: WebSocket, message: ServerMessage) { if (socket.readyState === WebSocket.OPEN) socket.send(encodeMessage(message)); }
 function broadcastRoom(roomId: string, message: ServerMessage, except?: WebSocket) { for (const player of players.values()) if (player.roomId === roomId && player.socket !== except) send(player.socket, message); }
 function getRoomLight(roomId: string) { return roomLight.get(roomId) ?? LIGHT_LEVEL_START; }
 function unlockedDistricts(roomId: string) { return getRoomLight(roomId) >= 90 ? ['dark-district'] : []; }
 function sendPlayerState(player: Player) { send(player.socket, { type: 'inventory_update', playerId: player.id, items: player.inventory }); send(player.socket, { type: 'quest_update', playerId: player.id, quests: player.quests }); send(player.socket, { type: 'world_state', lightLevel: getRoomLight(player.roomId), unlockedDistricts: unlockedDistricts(player.roomId) }); }
 function sendRoomSnapshot(player: Player) { const roomPlayers = [...players.values()].filter((entry) => entry.roomId === player.roomId && entry.id !== player.id).map((entry) => ({ playerId: entry.id, transform: entry.transform })); send(player.socket, { type: 'room_snapshot', roomId: player.roomId, players: roomPlayers, lightLevel: getRoomLight(player.roomId), unlockedDistricts: unlockedDistricts(player.roomId), pickedTargets: [...pickedTargets].filter((key) => key.startsWith(`${player.roomId}:`)).map((key) => key.slice(player.roomId.length + 1)) }); }
+function sendSession(player: Player, restored: boolean) { send(player.socket, { type: 'session_assigned', sessionToken: player.sessionToken, playerId: player.id, roomId: player.roomId, transform: player.transform, restored }); }
 function advanceQuest(player: Player, id: QuestState['id'], amount = 1) { const current = player.quests.find((quest) => quest.id === id); if (!current || current.status === 'locked' || current.status === 'completed') return; current.status = 'active'; current.progress = Math.min(current.target, current.progress + amount); if (current.progress >= current.target) { current.status = 'completed'; const index = player.quests.findIndex((quest) => quest.id === id); const next = player.quests[index + 1]; if (next) next.status = 'available'; } send(player.socket, { type: 'quest_update', playerId: player.id, quests: player.quests }); }
 function increaseLight(roomId: string, source: string, amount: number) { const level = Math.min(MAX_LIGHT_LEVEL, getRoomLight(roomId) + amount); roomLight.set(roomId, level); broadcastRoom(roomId, { type: 'light_update', level, source }); broadcastRoom(roomId, { type: 'world_state', lightLevel: level, unlockedDistricts: unlockedDistricts(roomId) }); }
 function rateLimited(player: Player, kind: 'state' | 'action') { const now = Date.now(); if (kind === 'state') { if (now - player.lastStateAt < STATE_INTERVAL_MS) return true; player.lastStateAt = now; } else { if (now - player.lastActionAt < ACTION_INTERVAL_MS) return true; player.lastActionAt = now; } return false; }
 function restoreSession(sessionToken: string | undefined, socket: WebSocket): Player | null { if (!sessionToken) return null; const saved = sessions.get(sessionToken); if (!saved || saved.expiresAt < Date.now()) { sessions.delete(sessionToken); return null; } sessions.delete(sessionToken); return { ...saved, socket, lastStateAt: 0, lastActionAt: 0, lastPongAt: Date.now() }; }
 function handleMessage(socket: WebSocket, message: ClientMessage) {
-  if (message.type === 'hello') { const restored = restoreSession(message.sessionToken, socket); if (restored) { players.set(socket, restored); send(socket, { type: 'session_assigned', sessionToken: restored.sessionToken, playerId: restored.id }); return; } return; }
-  if (message.type === 'join_room') {
-    if (players.has(socket)) { const existing = players.get(socket)!; if (existing.roomId === message.roomId) { sendRoomSnapshot(existing); sendPlayerState(existing); } return; }
-    const roomId = message.roomId.trim().slice(0, 32) || 'main';
-    const count = [...players.values()].filter((entry) => entry.roomId === roomId).length;
-    if (count >= DEFAULT_ROOM_CAPACITY) { send(socket, { type: 'error', code: 'ROOM_FULL', message: 'Room is full' }); return; }
-    const sessionToken = randomUUID();
-    const player: Player = { id: randomUUID(), sessionToken, roomId, socket, transform: { ...spawnTransform, x: count * 1.2 - 4.8 }, inventory: STARTING_INVENTORY.map((item) => ({ ...item })), quests: initialQuestStates(), lastStateAt: 0, lastActionAt: 0, lastPongAt: Date.now() };
-    players.set(socket, player);
-    send(socket, { type: 'session_assigned', sessionToken, playerId: player.id });
-    sendRoomSnapshot(player); broadcastRoom(roomId, { type: 'player_spawned', playerId: player.id, roomId, transform: player.transform }, socket); send(socket, { type: 'light_update', level: getRoomLight(roomId), source: player.id }); sendPlayerState(player); return;
-  }
+  if (message.type === 'hello') { const restored = restoreSession(message.sessionToken, socket); if (restored) { players.set(socket, restored); sendSession(restored, true); } return; }
+  if (message.type === 'join_room') { if (players.has(socket)) { const existing = players.get(socket)!; if (existing.roomId === message.roomId) { sendRoomSnapshot(existing); sendPlayerState(existing); } return; } const roomId = message.roomId.trim().slice(0, 32) || 'main'; const count = [...players.values()].filter((entry) => entry.roomId === roomId).length; if (count >= DEFAULT_ROOM_CAPACITY) { send(socket, { type: 'error', code: 'ROOM_FULL', message: 'Room is full' }); return; } const player: Player = { id: randomUUID(), sessionToken: randomUUID(), roomId, socket, transform: { ...spawnTransform, x: count * 1.2 - 4.8 }, inventory: STARTING_INVENTORY.map((item) => ({ ...item })), quests: initialQuestStates(), lastStateAt: 0, lastActionAt: 0, lastPongAt: Date.now() }; players.set(socket, player); sendSession(player, false); sendRoomSnapshot(player); broadcastRoom(roomId, { type: 'player_spawned', playerId: player.id, roomId, transform: player.transform }, socket); send(socket, { type: 'light_update', level: getRoomLight(roomId), source: player.id }); sendPlayerState(player); return; }
   const player = players.get(socket); if (!player) { send(socket, { type: 'error', code: 'NOT_JOINED', message: 'Join a room first' }); return; }
   if (message.type === 'player_state') { if (rateLimited(player, 'state')) return; const { x, y, z, rotation } = message.transform; if (![x, y, z, rotation].every(Number.isFinite)) return; player.transform = { x: Math.max(-3.2, Math.min(3.2, x)), y: Math.max(0, Math.min(3, y)), z: Math.max(-19, Math.min(19, z)), rotation: Math.max(-Math.PI, Math.min(Math.PI, rotation)) }; broadcastRoom(player.roomId, { type: 'player_state', playerId: player.id, transform: player.transform }, socket); return; }
   if (message.type === 'interact_request') { if (rateLimited(player, 'action')) return; if (message.targetId !== DIYA_TARGET_ID) { send(socket, { type: 'error', code: 'INVALID_TARGET', message: 'Unknown interaction target' }); return; } if (!isNear(player.transform, DIYA_POSITION, INTERACTION_RADIUS)) { send(socket, { type: 'error', code: 'TOO_FAR', message: 'Move closer to the diya' }); return; } const targetKey = `${player.roomId}:${DIYA_TARGET_ID}`; if (!litTargets.has(targetKey)) { litTargets.add(targetKey); increaseLight(player.roomId, player.id, 10); advanceQuest(player, 'first-flame'); } send(socket, { type: 'interaction_result', success: true, targetId: DIYA_TARGET_ID, lightLevel: getRoomLight(player.roomId), source: player.id }); return; }
