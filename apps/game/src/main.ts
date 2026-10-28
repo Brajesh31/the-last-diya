@@ -368,6 +368,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         remotePlayers: Array<{ id: string; position: { x: number; y: number; z: number }; target: { x: number; y: number; z: number } }>;
         promptText: string;
         memoryOpen: boolean;
+        finalEventActive: boolean;
         remoteAvatarLodEnabled: boolean;
         rendererInfo: { calls: number; triangles: number; geometries: number; textures: number };
       };
@@ -412,6 +413,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         })),
         promptText: prompt.textContent ?? '',
         memoryOpen: memorySequence.isOpen(),
+        finalEventActive,
         remoteAvatarLodEnabled,
         rendererInfo: {
           calls: renderer.info.render.calls,
@@ -452,7 +454,7 @@ function update(now: number) {
   const pickup = [...pickups.values()].find((entry) => !entry.collected && isNear(player.position, entry.mesh.position, 1.5));
   const remote = [...remotePlayers.values()].find((entry) => isNear(player.position, entry.target, 2.5));
   const nearNpc = npcGroups.find((entry) => isNear(player.position, entry.group.position, 1.5));
-  if (ui.dialogue.hidden && !lockedByMemory) prompt.textContent = near && !litLocally ? 'Press E to light the diya' : near ? 'Press E to carry the shared flame forward' : finalNear && !finalEventActive ? 'Press E to light the community diya' : pickup ? `Press E to collect ${pickup.definition.label}` : remote ? 'Press E to share your flame' : nearNpc ? `Press E to talk to ${nearNpc.npc.name}` : darkDistrictUnlocked ? 'The Dark District remembers' : `Shared Light Level ${lightLevel}%`;
+  if (ui.dialogue.hidden && !lockedByMemory) prompt.textContent = near && !litLocally ? 'Press E to light the diya' : near ? 'Press E to carry the shared flame forward' : finalNear && finalEventActive ? 'The neighbourhood is alive again.' : finalNear && !finalEventActive ? 'Press E to light the community diya' : pickup ? `Press E to collect ${pickup.definition.label}` : remote ? 'Press E to share your flame' : nearNpc ? `Press E to talk to ${nearNpc.npc.name}` : darkDistrictUnlocked ? 'The Dark District remembers' : `Shared Light Level ${lightLevel}%`;
   if (now - lastNetworkSend > 100 && !lockedByMemory) { send({ type: 'player_state', transform: playerTransform() }); lastNetworkSend = now; }
   playerCharacter.update(lightLevel, now / 1000, deltaSeconds, playerMoving);
   for (const remoteEntry of remotePlayers.values()) {

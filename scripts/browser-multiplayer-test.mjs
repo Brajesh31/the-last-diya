@@ -211,6 +211,7 @@ try {
     throw new Error('Browser clients did not retain unique player identities');
   }
   if (first.lightLevel !== 100) throw new Error(`Expected player one to observe Light Level 100%, got ${first.lightLevel}`);
+  if (!first.finalEventActive) throw new Error('Final community celebration was not active after the last diya interaction');
   if (!first.quests.some((quest) => quest.id === 'last-diya' && quest.status === 'completed')) {
     throw new Error('Player one last-diya quest was not completed in the browser');
   }
