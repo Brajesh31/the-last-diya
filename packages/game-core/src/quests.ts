@@ -34,6 +34,15 @@ export function initialQuestStates(): QuestState[] {
   }));
 }
 
+export function getQuestDefinition(id: QuestId): QuestDefinition | undefined {
+  return QUESTS.find((quest) => quest.id === id);
+}
+
+export function canProgressQuest(states: QuestState[], id: QuestId): boolean {
+  const state = states.find((quest) => quest.id === id);
+  return state?.status === 'available' || state?.status === 'active';
+}
+
 export function completeQuest(states: QuestState[], id: QuestId): QuestState[] {
   return states.map((state) => state.id === id ? { ...state, status: 'completed', progress: state.target } : state);
 }
