@@ -11,6 +11,7 @@ import { createAmbientAudio } from './world/ambient-audio';
 import { createEnvironmentStory } from './world/environment-story';
 import { createAtmosphereVfx } from './world/atmosphere-vfx';
 import { createNPCActivity } from './world/npc-activity';
+import { createNeighbourhoodProps } from './world/neighbourhood-props';
 
 const root = document.getElementById('game')!;
 const scene = new THREE.Scene();
@@ -44,6 +45,7 @@ for (let i = -18; i <= 18; i += 6) for (const x of [-6, 6]) {
   scene.add(house);
 }
 const neighbourhood = createNeighbourhoodState(scene);
+const neighbourhoodProps = createNeighbourhoodProps(scene);
 const ambientAudio = createAmbientAudio();
 const environmentStory = createEnvironmentStory(scene);
 const atmosphereVfx = createAtmosphereVfx(scene);
@@ -288,9 +290,10 @@ function update(now: number) {
   if (ui.dialogue.hidden && !lockedByMemory) prompt.textContent = near && !litLocally ? 'Press E to light the diya' : finalNear && !finalEventActive ? 'Press E to light the community diya' : pickup ? `Press E to collect ${pickup.definition.label}` : remote ? 'Press E to share your flame' : nearNpc ? `Press E to talk to ${nearNpc.npc.name}` : darkDistrictUnlocked ? 'The Dark District remembers' : `Shared Light Level ${lightLevel}%`;
   if (now - lastNetworkSend > 100 && !lockedByMemory) { send({ type: 'player_state', transform: playerTransform() }); lastNetworkSend = now; }
   for (const remoteEntry of remotePlayers.values()) { remoteEntry.mesh.position.lerp(remoteEntry.target, 0.18); remoteEntry.mesh.rotation.y = THREE.MathUtils.lerp(remoteEntry.mesh.rotation.y, remoteEntry.rotation, 0.18); }
-  npcActivity.update(lightLevel, now / 1000);
+  npcActivity.update(lightLevel, now / 1000, deltaSeconds);
   environmentStory.update(lightLevel, now / 1000);
   atmosphereVfx.update(lightLevel, deltaSeconds, now / 1000);
+  neighbourhoodProps.update(lightLevel, now / 1000);
   communityFlame.rotation.y += deltaSeconds * 1.5;
   communityFlame.scale.y = 2.2 + Math.sin(now / 120) * 0.25;
   memorySequence.update(deltaSeconds);
@@ -304,4 +307,4 @@ function update(now: number) {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 connect();
 renderer.setAnimationLoop(update);
-window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); ambientAudio.dispose(); });
+window.addEventListener('beforeunload', () => { memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); neighbourhoodProps.dispose(); ambientAudio.dispose(); });
