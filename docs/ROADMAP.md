@@ -120,6 +120,7 @@
 - [x] Initial CI profile recorded: 30 clients, 12 ticks, 10,440 / 10,440 peer deliveries, p50 4.03 ms, p95 10.71 ms, p99 12.86 ms, maximum 16.07 ms
 - [x] Browser rendering benchmark with multiple remote avatars and foreground-tab frame-time reporting
 - [x] Crowd-aware remote avatar LOD for rooms with 8+ players, with shadow-free simplified avatars
+- [ ] Crowd mode disables the dynamic shadow map and restores it when the room becomes sparse
 - [x] Single-window rendering profile with 29 remote avatars using 29 WebSocket peers (one WebGL renderer)
 - [x] Crowd LOD test passed 500 draw-call guard: 496 calls and 29,028 triangles versus full-detail baseline of 813 calls and 67,004 triangles
 - [x] Initial six-client software-rendered CI sample recorded: five remote avatars per client, median average FPS 4.50, minimum 3.16 FPS, median p95 frame interval 400.1 ms, median JS heap 16.3 MB
