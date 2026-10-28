@@ -82,7 +82,7 @@ function send(client, message) {
 
 async function moveClientTo(client, x, z, observers) {
   const from = observers[0].remoteTransforms.get(client.id);
-  assert.ok(from, 'observer must know the moving player's current transform');
+  assert.ok(from, "observer must know the moving player current transform");
   const distance = Math.hypot(x - from.x, z - from.z);
   const steps = Math.max(1, Math.ceil(distance / 0.35));
   for (let index = 1; index <= steps; index += 1) {
