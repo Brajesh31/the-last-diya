@@ -45,8 +45,8 @@
 - [x] Pickup rewards into inventory
 - [x] Flame sharing between nearby players
 - [x] Shared world progression state
-- [ ] Quest reward pipeline
-- [ ] Final Dark District interaction
+- [x] Quest reward pipeline
+- [x] Final Dark District interaction
 
 ## Phase 3 · Multiplayer Prototype — In progress
 - [x] Room lifecycle
@@ -64,13 +64,16 @@
 - [x] 2 / 5 / 10-player load-test script
 - [x] CI workflow for multiplayer load tests
 
-## Phase 4 · Vertical Slice — Next
-- [ ] One complete neighbourhood slice
-- [ ] Five NPCs
-- [ ] Five quests
-- [ ] One memory sequence
-- [ ] Market and temple-area storytelling
-- [ ] Final event prototype
+## Phase 4 · Vertical Slice — In progress
+- [x] One complete neighbourhood slice
+- [x] Five NPCs
+- [x] Five quests
+- [x] One memory sequence
+- [x] Market and temple-area storytelling
+- [x] Final event prototype
+- [x] Dynamic neighbourhood transformation from Light Level
+- [ ] Ambient audio pass
+- [ ] Environmental storytelling pass
 
 ## Phase 5 · Production Content
 - Full quest set
