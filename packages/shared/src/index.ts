@@ -56,7 +56,8 @@ export type ServerMessage =
   | { type: 'flame_shared'; fromPlayerId: PlayerId; toPlayerId: PlayerId; lightLevel: number }
   | { type: 'pickup_result'; success: boolean; targetId: string; itemId: ItemId; quantity: number }
   | { type: 'world_state'; lightLevel: number; unlockedDistricts: string[] }
-  | { type: 'room_snapshot'; roomId: RoomId; players: RoomPlayerSnapshot[]; lightLevel: number; unlockedDistricts: string[]; pickedTargets: string[]; memory?: MemorySequenceState; finalEvent?: WorldEventState }
+  | { type: 'target_state'; targetId: string; active: boolean }
+  | { type: 'room_snapshot'; roomId: RoomId; players: RoomPlayerSnapshot[]; lightLevel: number; unlockedDistricts: string[]; pickedTargets: string[]; litTargets: string[]; memory?: MemorySequenceState; finalEvent?: WorldEventState }
   | { type: 'memory_started'; memory: MemorySequenceState }
   | { type: 'memory_completed'; memoryId: MemoryId }
   | { type: 'final_event_started'; event: WorldEventState }
