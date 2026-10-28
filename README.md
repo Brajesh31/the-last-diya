@@ -4,17 +4,17 @@
 
 ## Status
 
-**Phase 0 · Pre-production**
+**Phase 1 · Technical Prototype — Multiplayer slice in progress**
 
-This repository is the production foundation for The Last Diya. The project is being built web-first with a 3D browser game, a separate realtime server, and a supporting product website.
+The repository now contains the working browser game foundation, realtime WebSocket server, shared game contracts, room joining, player movement synchronization, server-authoritative diya interaction, and shared Light Level progression.
 
-## Planned Stack
+## Stack
 
-- React + Vite + TypeScript for the web application
-- Three.js for the 3D game client
+- React + Vite + TypeScript for the product website and launcher
+- Three.js for the 3D browser game
 - Node.js + TypeScript for the realtime game server
 - WebSocket-based authoritative multiplayer
-- PostgreSQL / Supabase for persistent data
+- PostgreSQL / Supabase planned for persistent data
 - npm workspaces
 - Figma for UI/UX
 - Blender for 3D assets
@@ -29,13 +29,26 @@ apps/
 packages/
   shared/    Shared types and contracts
   game-core/ Platform-independent game rules
-  networking/ Multiplayer contracts and client helpers
-  database/  Persistence layer
-  config/    Shared TypeScript/build configuration
+  networking/ Multiplayer wire helpers
+  database/  Persistence layer foundation
+  config/    Shared configuration
 assets/      Game assets and asset metadata
 docs/        Product, game, technical and production specifications
 scripts/     Development and maintenance scripts
 ```
+
+## Current Multiplayer Slice
+
+1. Start the realtime server on port `8787`.
+2. Start the game client on port `5174`.
+3. Open two browser windows.
+4. Both clients join `main-street`.
+5. Player movement is synchronized through the authoritative server.
+6. Walk to the diya and press `E`.
+7. The server validates the interaction and updates the room Light Level.
+8. Both clients receive the shared world update.
+
+The game server endpoint can be configured with `VITE_GAME_SERVER_URL` in `apps/game/.env`.
 
 ## Development Principles
 
@@ -70,7 +83,7 @@ Mobile browser, Android packaging, larger rooms, voice chat and expanded content
 
 ## Documentation
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the development sequence and [`docs/GDD.md`](docs/GDD.md) for the game design foundation.
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the development sequence.
 
 ## License
 
