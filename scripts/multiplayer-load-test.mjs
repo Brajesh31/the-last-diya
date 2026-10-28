@@ -182,8 +182,6 @@ async function runScenario(playerCount) {
       transform: { x: -2.5, y: 0.75, z: -1, rotation: 0 },
     });
     await wait(150);
-    await waitUntil('first player movement accepted at doorway', () =>
-      Math.abs(first.remoteTransforms.get(first.id)?.x ?? -2.5) < 0.001 || true);
     // Wait beyond the server's per-player action throttle before requesting the pickup.
     await wait(300);
     send(first, { type: 'pickup_request', targetId: 'sharma-doorway-01' });
