@@ -110,15 +110,13 @@ addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
 let lightLevel = LIGHT_LEVEL_START;
 let litLocally = false;
 let socket: WebSocket | null = null;
-let serverPlayerId: string | null = null;
 let lastNetworkSend = 0;
 let reconnectTimer: number | undefined;
 
 function setLightLevel(value: number) {
   lightLevel = clampLightLevel(value);
   document.getElementById('light')!.textContent = `LIGHT ${lightLevel}%`;
-  const warmth = 0.45 + lightLevel / 300;
-  hemi.intensity = warmth;
+  hemi.intensity = 0.45 + lightLevel / 300;
   if (lightLevel > 0) {
     scene.background.set(0x15110b);
     scene.fog = new THREE.Fog(0x15110b, 20, 60);
@@ -132,7 +130,6 @@ function send(message: Parameters<typeof encodeMessage>[0]) {
 
 function handleServerMessage(message: ServerMessage) {
   if (message.type === 'player_spawned') {
-    if (message.playerId === serverPlayerId) return;
     const existing = remotePlayers.get(message.playerId);
     if (existing) return;
     const mesh = makeRemotePlayer();
@@ -173,18 +170,18 @@ function handleServerMessage(message: ServerMessage) {
   if (message.type === 'interaction_result' && message.success) {
     litLocally = true;
     setLightLevel(message.lightLevel);
-    prompt.textContent = `Diya lit · Shared Light Level +10%`;
+    prompt.textContent = 'Diya lit · Shared Light Level +10%';
     return;
   }
 
-  if (message.type === 'error') {
-    prompt.textContent = message.message;
-  }
+  if (message.type === 'error') prompt.textContent = message.message;
 }
 
 function connect() {
+  const configured = import.meta.env.VITE_GAME_SERVER_URL as string | undefined;
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  socket = new WebSocket(`${protocol}//${location.hostname}:8787`);
+  const endpoint = configured || `${protocol}//${location.hostname}:8787`;
+  socket = new WebSocket(endpoint);
   const connection = document.getElementById('connection')!;
   connection.textContent = 'CONNECTING';
 
@@ -197,7 +194,7 @@ function connect() {
 
   socket.addEventListener('message', (event) => {
     const message = decodeMessage(String(event.data));
-    if (message) handleServerMessage(message as ServerMessage);
+    if (message && 'type' in message) handleServerMessage(message as ServerMessage);
   });
 
   socket.addEventListener('close', () => {
