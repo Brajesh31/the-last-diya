@@ -10,6 +10,7 @@ import { applyNeighbourhoodLight, createNeighbourhoodState } from './world/neigh
 import { createAmbientAudio } from './world/ambient-audio';
 import { createEnvironmentStory } from './world/environment-story';
 import { createAtmosphereVfx } from './world/atmosphere-vfx';
+import { createNPCActivity } from './world/npc-activity';
 
 const root = document.getElementById('game')!;
 const scene = new THREE.Scene();
@@ -89,8 +90,9 @@ const npcGroups = NPCS.map((npc) => {
   group.add(body);
   group.position.set(npc.position.x, 0, npc.position.z);
   scene.add(group);
-  return { npc, group, index: 0 };
+  return { npc, group, index: 0, home: group.position.clone(), target: group.position.clone(), speed: 0.5, phase: 0, active: false };
 });
+const npcActivity = createNPCActivity(npcGroups);
 
 const pickupDefinitions = [
   { id: 'sharma-doorway-01', x: -2.5, z: -1, label: '2 wicks' },
@@ -286,6 +288,7 @@ function update(now: number) {
   if (ui.dialogue.hidden && !lockedByMemory) prompt.textContent = near && !litLocally ? 'Press E to light the diya' : finalNear && !finalEventActive ? 'Press E to light the community diya' : pickup ? `Press E to collect ${pickup.definition.label}` : remote ? 'Press E to share your flame' : nearNpc ? `Press E to talk to ${nearNpc.npc.name}` : darkDistrictUnlocked ? 'The Dark District remembers' : `Shared Light Level ${lightLevel}%`;
   if (now - lastNetworkSend > 100 && !lockedByMemory) { send({ type: 'player_state', transform: playerTransform() }); lastNetworkSend = now; }
   for (const remoteEntry of remotePlayers.values()) { remoteEntry.mesh.position.lerp(remoteEntry.target, 0.18); remoteEntry.mesh.rotation.y = THREE.MathUtils.lerp(remoteEntry.mesh.rotation.y, remoteEntry.rotation, 0.18); }
+  npcActivity.update(lightLevel, now / 1000);
   environmentStory.update(lightLevel, now / 1000);
   atmosphereVfx.update(lightLevel, deltaSeconds, now / 1000);
   communityFlame.rotation.y += deltaSeconds * 1.5;
