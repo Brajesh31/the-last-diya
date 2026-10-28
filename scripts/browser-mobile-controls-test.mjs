@@ -39,7 +39,7 @@ try {
   await up.dispatchEvent('pointerup', { pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0, buttons: 0 });
   await page.waitForTimeout(200);
   const afterMove = await page.evaluate(() => window.__LAST_DIYA_E2E__?.getState());
-  assert.ok(afterMove.position.z < before.position.z - 0.6, \`touch movement should move the player forward, before z=\${before.position.z} after z=\${afterMove.position.z}\`);
+  assert.ok(afterMove.position.z < before.position.z - 0.6, `touch movement should move the player forward, before z=\${before.position.z} after z=\${afterMove.position.z}`);
   console.log('PASS holding the touch movement control advances the player');
 
   await page.evaluate(() => window.__LAST_DIYA_E2E__?.moveTo(0, -4));
