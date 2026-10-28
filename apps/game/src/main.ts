@@ -301,6 +301,9 @@ addEventListener('keydown', (event) => {
   interact();
 });
 
+const cameraDesiredPosition = new THREE.Vector3();
+const cameraLookTarget = new THREE.Vector3();
+
 let previousTime = performance.now();
 function update(now: number) {
   const deltaSeconds = Math.min((now - previousTime) / 1000, 0.05);
@@ -342,8 +345,17 @@ function update(now: number) {
   memorySequence.update(deltaSeconds);
   celebration.update(deltaSeconds);
   ambientAudio.update(deltaSeconds);
-  camera.position.lerp(new THREE.Vector3(player.position.x + 6, 6.5, player.position.z + 8), 0.06);
-  camera.lookAt(player.position.x, 1, player.position.z);
+  const behindDistance = 8.5;
+  const shoulderOffset = 2.2;
+  cameraDesiredPosition.set(
+    player.position.x - Math.sin(player.rotation.y) * behindDistance + Math.cos(player.rotation.y) * shoulderOffset,
+    6.2,
+    player.position.z + Math.cos(player.rotation.y) * behindDistance + Math.sin(player.rotation.y) * shoulderOffset,
+  );
+  const cameraSmoothing = 1 - Math.exp(-5.5 * deltaSeconds);
+  camera.position.lerp(cameraDesiredPosition, cameraSmoothing);
+  cameraLookTarget.set(player.position.x, 1.05, player.position.z);
+  camera.lookAt(cameraLookTarget);
   renderer.render(scene, camera);
 }
 
