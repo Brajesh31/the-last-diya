@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 
 const gameUrl = process.env.GAME_URL ?? 'http://127.0.0.1:5174';
 const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS ?? 15000);
+const startupTimeoutMs = Number(process.env.BROWSER_STARTUP_TIMEOUT_MS ?? 45000);
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const failures = [];
 const consoleErrors = [];
@@ -57,8 +58,8 @@ try {
         if (payload) console.log(`client ${index + 1} WS< ${payload.slice(0, 180)}`);
       });
     });
-    await page.goto(gameUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    await page.locator('#game canvas').waitFor({ state: 'attached', timeout: timeoutMs }).catch(async (error) => {
+    await page.goto(gameUrl, { waitUntil: 'domcontentloaded', timeout: startupTimeoutMs });
+    await page.locator('#game canvas').waitFor({ state: 'attached', timeout: startupTimeoutMs }).catch(async (error) => {
       const state = await page.evaluate(() => ({
         url: location.href,
         title: document.title,
