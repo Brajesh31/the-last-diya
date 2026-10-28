@@ -124,6 +124,17 @@ export function createPlayerCharacter(identity: string, local = false): PlayerCh
   lanternLight.position.set(0, 0.08, 0.03);
   lantern.add(lanternLight);
 
+  // Remote avatars can be numerous. Keep primitive avatar parts out of shadow-map passes.
+  // The local avatar and authored/procedural environment retain their existing shadows.
+  if (!local) {
+    group.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.castShadow = false;
+        object.receiveShadow = false;
+      }
+    });
+  }
+
   const update = (lightLevel: number, elapsedSeconds: number, deltaSeconds: number, moving: boolean) => {
     const activity = THREE.MathUtils.smoothstep(lightLevel, 0, 45);
     const gait = moving ? Math.sin(elapsedSeconds * 9.5) : 0;
