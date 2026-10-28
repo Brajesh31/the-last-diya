@@ -17,6 +17,7 @@ on:
       - 'scripts/multiplayer-smoke-test.mjs'
       - 'scripts/player-collision-test.mjs'
       - 'scripts/vertical-slice-quest-test.mjs'
+      - 'scripts/server-hardening-test.mjs'
       - 'package.json'
       - '.github/workflows/multiplayer-smoke-test.yml'
 
@@ -59,6 +60,9 @@ jobs:
 
       - name: Run vertical slice quest chain
         run: npm run test:vertical-slice
+
+      - name: Run movement validation and room isolation tests
+        run: npm run test:server-hardening
 
       - name: Server log
         if: always()

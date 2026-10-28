@@ -26,6 +26,8 @@ const COMMUNITY_DIYA_POSITION = { x: 0, z: -24 };
 const INTERACTION_RADIUS = 2.2;
 const FLAME_SHARE_RADIUS = 2.5;
 const STATE_INTERVAL_MS = 80;
+const MAX_PLAYER_SPEED = 8;
+const MOVEMENT_TOLERANCE = 0.4;
 const ACTION_INTERVAL_MS = 250;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const HEARTBEAT_TIMEOUT_MS = 45_000;
@@ -129,8 +131,8 @@ function increaseLight(roomId: string, source: string, amount: number) {
 function startMemory(roomId: string) { if (!roomMemories.has(roomId)) { roomMemories.set(roomId, FIRST_MEMORY); broadcastRoom(roomId, { type: 'memory_started', memory: FIRST_MEMORY }); } }
 function completeMemory(roomId: string, memoryId: MemorySequenceState['id']) { const memory = roomMemories.get(roomId); if (!memory || memory.id !== memoryId) return false; roomMemories.delete(roomId); broadcastRoom(roomId, { type: 'memory_completed', memoryId }); return true; }
 function startFinalEvent(roomId: string) { const existing = getFinalEvent(roomId); if (existing.active || existing.completed) return existing; const event: WorldEventState = { id: 'community-diya-celebration', active: true, completed: false, startedAt: Date.now() }; roomFinalEvents.set(roomId, event); broadcastRoom(roomId, { type: 'final_event_started', event }); return event; }
-function rateLimited(player: Player, kind: 'state' | 'action') { const now = Date.now(); if (kind === 'state') { if (now - player.lastStateAt < STATE_INTERVAL_MS) return true; player.lastStateAt = now; } else { if (now - player.lastActionAt < ACTION_INTERVAL_MS) return true; player.lastActionAt = now; } return false; }
-function restoreSession(sessionToken: string | undefined, socket: WebSocket): Player | null { if (!sessionToken) return null; const saved = sessions.get(sessionToken); if (!saved || saved.expiresAt < Date.now()) { sessions.delete(sessionToken); return null; } sessions.delete(sessionToken); return { ...saved, socket, lastStateAt: 0, lastActionAt: 0, lastPongAt: Date.now() }; }
+function rateLimited(player: Player) { const now = Date.now(); if (now - player.lastActionAt < ACTION_INTERVAL_MS) return true; player.lastActionAt = now; return false; }
+function restoreSession(sessionToken: string | undefined, socket: WebSocket): Player | null { if (!sessionToken) return null; const saved = sessions.get(sessionToken); if (!saved || saved.expiresAt < Date.now()) { sessions.delete(sessionToken); return null; } sessions.delete(sessionToken); return { ...saved, socket, lastStateAt: Date.now(), lastActionAt: 0, lastPongAt: Date.now() }; }
 
 function handleMessage(socket: WebSocket, message: ClientMessage) {
   if (message.type === 'hello') { const restored = restoreSession(message.sessionToken, socket); if (restored) { players.set(socket, restored); sendSession(restored, true); broadcastRoom(restored.roomId, { type: 'player_spawned', playerId: restored.id, roomId: restored.roomId, transform: restored.transform }, socket); sendRoomSnapshot(restored); sendPlayerState(restored); } return; }
@@ -139,15 +141,43 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
     const roomId = message.roomId.trim().slice(0, 32) || 'main';
     const count = [...players.values()].filter((entry) => entry.roomId === roomId).length;
     if (count >= DEFAULT_ROOM_CAPACITY) { send(socket, { type: 'error', code: 'ROOM_FULL', message: 'Room is full' }); return; }
-    const player: Player = { id: randomUUID(), sessionToken: randomUUID(), roomId, socket, transform: { ...SPAWN_POSITIONS[count] }, inventory: STARTING_INVENTORY.map((item) => ({ ...item })), quests: initialQuestStates(), lastStateAt: 0, lastActionAt: 0, lastPongAt: Date.now() };
+    const player: Player = { id: randomUUID(), sessionToken: randomUUID(), roomId, socket, transform: { ...SPAWN_POSITIONS[count] }, inventory: STARTING_INVENTORY.map((item) => ({ ...item })), quests: initialQuestStates(), lastStateAt: Date.now(), lastActionAt: 0, lastPongAt: Date.now() };
     players.set(socket, player); sendSession(player, false); sendRoomSnapshot(player); broadcastRoom(roomId, { type: 'player_spawned', playerId: player.id, roomId, transform: player.transform }, socket); send(socket, { type: 'light_update', level: getRoomLight(roomId), source: player.id }); sendPlayerState(player); return;
   }
   const player = players.get(socket);
   if (!player) { send(socket, { type: 'error', code: 'NOT_JOINED', message: 'Join a room first' }); return; }
-  if (message.type === 'player_state') { if (rateLimited(player, 'state')) return; const { x, y, z, rotation } = message.transform; if (![x, y, z, rotation].every(Number.isFinite)) return; player.transform = { x: Math.max(-3.2, Math.min(3.2, x)), y: Math.max(0, Math.min(3, y)), z: Math.max(-27, Math.min(19, z)), rotation: Math.max(-Math.PI, Math.min(Math.PI, rotation)) }; broadcastRoom(player.roomId, { type: 'player_state', playerId: player.id, transform: player.transform }, socket); return; }
+  if (message.type === 'player_state') {
+    const now = Date.now();
+    if (now - player.lastStateAt < STATE_INTERVAL_MS) return;
+    const elapsedSeconds = Math.max(STATE_INTERVAL_MS / 1000, (now - player.lastStateAt) / 1000);
+    player.lastStateAt = now;
+
+    const { x, y, z, rotation } = message.transform;
+    if (![x, y, z, rotation].every(Number.isFinite)) {
+      send(socket, { type: 'error', code: 'INVALID_TRANSFORM', message: 'Movement data must contain finite coordinates' });
+      return;
+    }
+
+    const minZ = getRoomLight(player.roomId) >= DARK_DISTRICT_UNLOCK_LEVEL ? -27 : -19;
+    if (x < -3.2 || x > 3.2 || y < 0.45 || y > 1.2 || z < minZ || z > 19 || rotation < -Math.PI || rotation > Math.PI) {
+      send(socket, { type: 'error', code: 'OUT_OF_BOUNDS', message: 'That position is outside the walkable area' });
+      return;
+    }
+
+    const distance = Math.hypot(x - player.transform.x, z - player.transform.z);
+    const allowedDistance = MAX_PLAYER_SPEED * elapsedSeconds + MOVEMENT_TOLERANCE;
+    if (distance > allowedDistance) {
+      send(socket, { type: 'error', code: 'MOVE_TOO_FAST', message: 'Movement was too fast; move through the neighbourhood more gradually' });
+      return;
+    }
+
+    player.transform = { x, y, z, rotation };
+    broadcastRoom(player.roomId, { type: 'player_state', playerId: player.id, transform: player.transform }, socket);
+    return;
+  }
 
   if (message.type === 'interact_request') {
-    if (rateLimited(player, 'action')) return;
+    if (rateLimited(player)) return;
     if (message.targetId === DIYA_TARGET_ID) {
       if (!isNear(player.transform, DIYA_POSITION, INTERACTION_RADIUS)) { send(socket, { type: 'error', code: 'TOO_FAR', message: 'Move closer to the diya' }); return; }
       const targetKey = `${player.roomId}:${DIYA_TARGET_ID}`;
@@ -172,7 +202,7 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
   }
 
   if (message.type === 'pickup_request') {
-    if (rateLimited(player, 'action')) return;
+    if (rateLimited(player)) return;
     const pickup = PICKUPS[message.targetId];
     if (!pickup || !isNear(player.transform, pickup, INTERACTION_RADIUS)) { send(socket, { type: 'error', code: 'INVALID_PICKUP', message: 'That item is not available here' }); return; }
     if (pickup.questId && !canProgressQuest(player.quests, pickup.questId)) { send(socket, { type: 'error', code: 'QUEST_LOCKED', message: 'Complete the previous quest before taking this step' }); return; }
@@ -189,20 +219,20 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
   }
 
   if (message.type === 'memory_continue') {
-    if (rateLimited(player, 'action')) return;
+    if (rateLimited(player)) return;
     if (!completeMemory(player.roomId, message.memoryId)) return;
     advanceQuest(player, 'temple-memory');
     return;
   }
   if (message.type === 'final_event_ready') {
-    if (rateLimited(player, 'action')) return;
+    if (rateLimited(player)) return;
     if (getRoomLight(player.roomId) < FINAL_EVENT_LEVEL) { send(socket, { type: 'error', code: 'LIGHT_TOO_LOW', message: 'Reach 100% Light Level first' }); return; }
     const quest = player.quests.find((entry) => entry.id === 'last-diya');
     if (quest?.status !== 'completed') { send(socket, { type: 'error', code: 'QUEST_INCOMPLETE', message: 'Light the last community diya first' }); return; }
     startFinalEvent(player.roomId); return;
   }
   if (message.type === 'share_flame_request') {
-    if (rateLimited(player, 'action')) return;
+    if (rateLimited(player)) return;
     const target = [...players.values()].find((entry) => entry.id === message.targetPlayerId && entry.roomId === player.roomId);
     if (!target || target.id === player.id) { send(socket, { type: 'error', code: 'PLAYER_NOT_FOUND', message: 'That player is no longer nearby' }); return; }
     if (!isNear(player.transform, target.transform, FLAME_SHARE_RADIUS)) { send(socket, { type: 'error', code: 'TOO_FAR', message: 'Stand closer to share your flame' }); return; }

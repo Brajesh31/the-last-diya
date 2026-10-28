@@ -23,7 +23,7 @@ async function moveTo(page, x, z, label) {
   await page.evaluate(({ x, z }) => {
     const bridge = window.__LAST_DIYA_E2E__;
     if (!bridge) throw new Error('Development-only test bridge unavailable. Ensure GAME_URL includes ?e2e=1.');
-    bridge.moveTo(x, z);
+    return bridge.moveTo(x, z);
   }, { x, z });
   // Let the client animation loop publish the accepted transform to the authoritative server.
   await page.waitForTimeout(300);

@@ -90,7 +90,8 @@
 - [x] Axis-separated movement allows sliding around blocked props
 - [x] Interaction hotspots remain reachable around market stalls and temple platform
 - [ ] Replace prototype geometry with authored, final-quality character and environment assets
-- [ ] Playtest full quest progression with two real browser clients
+- [x] Two-client Chromium E2E verifies shared diya, personal quests and pickup rewards
+- [ ] Playtest full five-quest progression manually with two browser clients
 
 ## Phase 5 · Production Content
 - [ ] Full quest set and additional memories
@@ -110,6 +111,7 @@
 - [x] Automated player collision test passes
 - [x] Automated five-quest vertical slice test passes
 - [x] Green multiplayer load tests (2 / 5 / 10-player workflow passes in GitHub Actions)
+- [ ] Server movement speed/bounds validation and room isolation tests pass
 - [ ] Performance profiling
 - [ ] Server and networking security validation
 - [ ] Monitoring and error reporting

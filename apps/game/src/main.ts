@@ -331,7 +331,7 @@ addEventListener('keydown', (event) => {
 if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e') === '1') {
   const testWindow = window as Window & {
     __LAST_DIYA_E2E__?: {
-      moveTo: (x: number, z: number) => void;
+      moveTo: (x: number, z: number) => Promise<void>;
       interact: () => void;
       getState: () => {
         playerId: PlayerId | null;
@@ -343,16 +343,26 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
     };
   };
   testWindow.__LAST_DIYA_E2E__ = {
-    moveTo(x, z) {
+    async moveTo(x, z) {
       if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error('Test position must be finite');
-      const previous = player.position.clone();
-      player.position.set(
-        THREE.MathUtils.clamp(x, -3.2, 3.2),
-        0.75,
-        THREE.MathUtils.clamp(z, darkDistrictUnlocked ? -27 : -19, 19),
-      );
-      player.rotation.y = Math.atan2(player.position.x - previous.x, player.position.z - previous.z);
-      send({ type: 'player_state', transform: playerTransform() });
+      const startX = player.position.x;
+      const startZ = player.position.z;
+      const targetX = THREE.MathUtils.clamp(x, -3.2, 3.2);
+      const targetZ = THREE.MathUtils.clamp(z, darkDistrictUnlocked ? -27 : -19, 19);
+      const distance = Math.hypot(targetX - startX, targetZ - startZ);
+      const steps = Math.max(1, Math.ceil(distance / 0.35));
+
+      for (let index = 1; index <= steps; index += 1) {
+        const previous = player.position.clone();
+        const nextX = startX + (targetX - startX) * index / steps;
+        const nextZ = startZ + (targetZ - startZ) * index / steps;
+        const direction = new THREE.Vector3(nextX - previous.x, 0, nextZ - previous.z);
+        const stepDistance = direction.length();
+        if (stepDistance > 0) movePlayerWithCollision(player.position, direction.normalize(), stepDistance, darkDistrictUnlocked);
+        player.rotation.y = Math.atan2(player.position.x - previous.x, player.position.z - previous.z);
+        send({ type: 'player_state', transform: playerTransform() });
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 130));
+      }
     },
     interact,
     getState() {

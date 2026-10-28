@@ -17,7 +17,8 @@
     "test:multiplayer:load": "node scripts/multiplayer-load-test.mjs",
     "test:vertical-slice": "node scripts/vertical-slice-quest-test.mjs",
     "test:collision": "node --import tsx scripts/player-collision-test.mjs",
-    "test:browser:multiplayer": "node scripts/browser-multiplayer-test.mjs"
+    "test:browser:multiplayer": "node scripts/browser-multiplayer-test.mjs",
+    "test:server-hardening": "node scripts/server-hardening-test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"
