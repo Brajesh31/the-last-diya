@@ -76,7 +76,7 @@ function sendPlayerState(player: Player) {
 }
 function sendRoomSnapshot(player: Player) {
   const roomPlayers = [...players.values()].filter((entry) => entry.roomId === player.roomId && entry.id !== player.id).map((entry) => ({ playerId: entry.id, transform: entry.transform }));
-  send(player.socket, { type: 'room_snapshot', roomId: player.roomId, players: roomPlayers, lightLevel: getRoomLight(player.roomId), unlockedDistricts: unlockedDistricts(player.roomId), pickedTargets: [...pickedTargets].filter((key) => key.startsWith(`${player.roomId}:`)).map((key) => key.slice(player.roomId.length + 1)), memory: roomMemories.get(player.roomId), finalEvent: getFinalEvent(player.roomId) });
+  send(player.socket, { type: 'room_snapshot', roomId: player.roomId, players: roomPlayers, lightLevel: getRoomLight(player.roomId), unlockedDistricts: unlockedDistricts(player.roomId), pickedTargets: [...pickedTargets].filter((key) => key.startsWith(`${player.roomId}:`)).map((key) => key.slice(player.roomId.length + 1)), litTargets: [...litTargets].filter((key) => key.startsWith(`${player.roomId}:`)).map((key) => key.slice(player.roomId.length + 1)), memory: roomMemories.get(player.roomId), finalEvent: getFinalEvent(player.roomId) });
 }
 function sendSession(player: Player, restored: boolean) { send(player.socket, { type: 'session_assigned', sessionToken: player.sessionToken, playerId: player.id, roomId: player.roomId, transform: player.transform, restored }); }
 
@@ -139,7 +139,12 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
     if (message.targetId === DIYA_TARGET_ID) {
       if (!isNear(player.transform, DIYA_POSITION, INTERACTION_RADIUS)) { send(socket, { type: 'error', code: 'TOO_FAR', message: 'Move closer to the diya' }); return; }
       const targetKey = `${player.roomId}:${DIYA_TARGET_ID}`;
-      if (!litTargets.has(targetKey)) { litTargets.add(targetKey); increaseLight(player.roomId, player.id, 10); advanceQuest(player, 'first-flame'); }
+      if (!litTargets.has(targetKey)) {
+        litTargets.add(targetKey);
+        broadcastRoom(player.roomId, { type: 'target_state', targetId: DIYA_TARGET_ID, active: true });
+        increaseLight(player.roomId, player.id, 10);
+        advanceQuest(player, 'first-flame');
+      }
       send(socket, { type: 'interaction_result', success: true, targetId: DIYA_TARGET_ID, lightLevel: getRoomLight(player.roomId), source: player.id }); return;
     }
     if (message.targetId === COMMUNITY_DIYA_TARGET_ID) {
