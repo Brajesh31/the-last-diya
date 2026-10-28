@@ -79,6 +79,10 @@
 - [x] Procedural third-person player avatar
 - [x] Local and remote avatar animation
 - [x] Carried diya glow responds to Light Level
+- [x] Orientation-aware, frame-rate-independent third-person camera follow
+- [x] Shared Light Level progress meter and neighbourhood stage label in the HUD
+- [x] Persistent main diya state restored from room snapshots
+- [x] Main diya activation broadcast to all players in a room
 - [ ] Replace prototype geometry with authored, final-quality character and environment assets
 - [ ] Playtest full quest progression with two real browser clients
 
@@ -92,8 +96,8 @@
 
 ## Phase 6 · Hardening
 - [x] Workspace type-check and build workflow added
-- [ ] Green CI for workspace type-checks and builds
-- [ ] Green multiplayer smoke test
+- [x] Workspace type-check and production build pass in GitHub Actions
+- [ ] Confirm the expanded smoke test for shared target-state synchronization passes on the latest commit
 - [ ] Green multiplayer load tests
 - [ ] Performance profiling
 - [ ] Server and networking security validation
