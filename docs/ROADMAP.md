@@ -61,15 +61,16 @@
 - [x] Personal player-state restoration across reconnects
 - [x] Automated multiplayer smoke-test script
 - [x] CI workflow for multiplayer smoke tests
-- [ ] Load test for 2 / 5 / 10 players
+- [x] 2 / 5 / 10-player load-test script
+- [x] CI workflow for multiplayer load tests
 
-## Phase 4 · Vertical Slice
-- One complete neighbourhood slice
-- Five NPCs
-- Five quests
-- One memory sequence
-- Market and temple-area storytelling
-- Final event prototype
+## Phase 4 · Vertical Slice — Next
+- [ ] One complete neighbourhood slice
+- [ ] Five NPCs
+- [ ] Five quests
+- [ ] One memory sequence
+- [ ] Market and temple-area storytelling
+- [ ] Final event prototype
 
 ## Phase 5 · Production Content
 - Full quest set
