@@ -48,15 +48,19 @@
 - [ ] Quest reward pipeline
 - [ ] Final Dark District interaction
 
-## Phase 3 · Multiplayer Prototype
+## Phase 3 · Multiplayer Prototype — In progress
 - [x] Room lifecycle
 - [x] Player spawn/despawn
 - [x] Movement synchronization
 - [x] Interaction synchronization
-- [ ] Reconnect handling with state restoration
+- [x] Room snapshot/state recovery
 - [x] Server interaction validation
-- [ ] Rate limiting
-- [ ] Snapshot/state recovery
+- [x] Server rate limiting
+- [x] WebSocket heartbeat and timeout handling
+- [x] Client reconnect loop
+- [ ] Personal player-state restoration across reconnects
+- [ ] Automated multiplayer smoke test
+- [ ] Load test for 2 / 5 / 10 players
 
 ## Phase 4 · Vertical Slice
 - One complete neighbourhood slice
