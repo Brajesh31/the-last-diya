@@ -97,10 +97,10 @@ export function createPlayerCharacter(identity: string, local = false): PlayerCh
   const legPivots: THREE.Group[] = [];
   for (const side of [-1, 1]) {
     const pivot = new THREE.Group();
-    pivot.position.set(side * 0.105, -0.22, 0);
+    pivot.position.set(side * 0.105, -0.27, 0);
     group.add(pivot);
-    addMesh(pivot, capsule(0.082, 0.31, palette.trousers), [0, -0.17, 0]);
-    addMesh(pivot, box([0.15, 0.08, 0.24], 0x282a28), [0, -0.36, 0.055]);
+    addMesh(pivot, capsule(0.082, 0.31, palette.trousers), [0, -0.19, 0]);
+    addMesh(pivot, box([0.15, 0.08, 0.24], 0x282a28), [0, -0.44, 0.055]);
     legPivots.push(pivot);
   }
 
