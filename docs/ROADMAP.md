@@ -40,21 +40,23 @@
 - [x] Quest synchronization contract
 - [x] Quest UI
 - [x] First quest completion through diya interaction
-- [ ] Item pickup interactions
-- [ ] Item collection rewards
-- [ ] Flame sharing
-- [ ] Shared world progression states
+- [x] Item pickup interactions
+- [x] Server-authoritative item collection
+- [x] Pickup rewards into inventory
+- [x] Flame sharing between nearby players
+- [x] Shared world progression state
 - [ ] Quest reward pipeline
+- [ ] Final Dark District interaction
 
 ## Phase 3 · Multiplayer Prototype
-- Room lifecycle
-- Player spawn/despawn
-- Movement synchronization
-- Interaction synchronization
-- Reconnect handling
-- Server validation
-- Rate limiting
-- Snapshot/state recovery
+- [x] Room lifecycle
+- [x] Player spawn/despawn
+- [x] Movement synchronization
+- [x] Interaction synchronization
+- [ ] Reconnect handling with state restoration
+- [x] Server interaction validation
+- [ ] Rate limiting
+- [ ] Snapshot/state recovery
 
 ## Phase 4 · Vertical Slice
 - One complete neighbourhood slice
@@ -94,4 +96,4 @@
 - Public launch
 
 ### First real-game milestone
-Two browser windows join the same world, one player lights a diya, the other sees the change, the shared Light Level updates, the street becomes brighter, an NPC reacts, and both players reach the final event.
+Two browser windows join the same world, one player lights a diya, the other sees the change, the shared Light Level updates, the street becomes brighter, an NPC reacts, players can share flame and collect quest items, the Dark District unlocks at 90%, and both players reach the final event.
