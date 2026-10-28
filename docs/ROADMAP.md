@@ -63,7 +63,7 @@
 - [x] 2 / 5 / 10-player load-test script
 - [x] GitHub Actions workflows for multiplayer smoke and load tests
 - [x] Multiplayer smoke workflow passes for shared world state and per-player quest progress
-- [ ] Get multiplayer load-test workflow passing on the current branch
+- [x] Multiplayer load-test workflow passes at 2, 5 and 10 players
 - [ ] Validate 20 / 30-player sessions
 
 ## Phase 4 · Vertical Slice | In progress
@@ -105,6 +105,8 @@
 - [x] Workspace type-check and production build pass in GitHub Actions
 - [x] Expanded multiplayer smoke test verifies main diya target-state synchronization
 - [x] Expanded multiplayer smoke test verifies both players can progress their personal quest chain
+- [x] Load tests verify remote movement synchronization at 2 / 5 / 10 players
+- [x] Load tests verify reconnect restores player session, quest progress, inventory, personal pickups and shared world state
 - [x] Automated player collision test passes
 - [x] Automated five-quest vertical slice test passes
 - [ ] Green multiplayer load tests
@@ -131,4 +133,4 @@
 Two browser windows join the same world. One player lights a diya, the other sees the change, and the shared Light Level updates. The street brightens, NPCs react, players can share flame and collect quest items, the Dark District unlocks at 90%, and both players can reach the final event.
 
 ### Validation note
-The character and environment systems are implemented as procedural prototypes. Workspace type-check/build, two-player state and personal-quest tests, collision tests, and the automated five-quest chain currently pass in GitHub Actions. A visual playtest in two real browser windows, multiplayer load tests, and final-art replacement remain outstanding.
+The character and environment systems are implemented as procedural prototypes. Workspace type-check/build, two-player cooperative tests, collision tests, the five-quest chain, and 2 / 5 / 10-player load tests currently pass in GitHub Actions. The load tests cover movement synchronization and reconnect recovery for quest progress, inventory, personal pickups and shared world state. A visual playtest in two real browser windows and final-art replacement remain outstanding.
