@@ -239,6 +239,7 @@ function handleServerMessage(message: ServerMessage) {
   if (message.type === 'room_snapshot') {
     clearRemotePlayers();
     applyWorldState(message.lightLevel, message.unlockedDistricts);
+    litLocally = message.litTargets.includes('diya-main-street-01');
     for (const entry of message.players) addRemotePlayer(entry.playerId, entry.transform);
     for (const [id, pickup] of pickups) { pickup.collected = message.pickedTargets.includes(id); pickup.mesh.visible = !pickup.collected; }
     if (message.memory?.active) memorySequence.open();
@@ -248,7 +249,8 @@ function handleServerMessage(message: ServerMessage) {
   if (message.type === 'player_spawned') { addRemotePlayer(message.playerId, message.transform); return; }
   if (message.type === 'player_state') { const remote = remotePlayers.get(message.playerId); if (remote) { remote.target.set(message.transform.x, message.transform.y, message.transform.z); remote.rotation = message.transform.rotation; } return; }
   if (message.type === 'player_left') { const remote = remotePlayers.get(message.playerId); if (remote) { scene.remove(remote.mesh); remote.visual.dispose(); remotePlayers.delete(message.playerId); } return; }
-  if (message.type === 'light_update') { setLightLevel(message.level); if (message.level >= 10) litLocally = true; return; }
+  if (message.type === 'light_update') { setLightLevel(message.level); return; }
+  if (message.type === 'target_state') { if (message.targetId === 'diya-main-street-01') litLocally = message.active; return; }
   if (message.type === 'interaction_result' && message.success) {
     if (message.targetId === 'diya-main-street-01') { litLocally = true; prompt.textContent = 'Diya lit · Shared Light Level +10%'; }
     if (message.targetId === 'community-diya-01') prompt.textContent = 'The last diya is lit. The neighbourhood remembers.';
