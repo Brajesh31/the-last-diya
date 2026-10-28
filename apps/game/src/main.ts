@@ -91,7 +91,7 @@ const npcGroups = NPCS.map((npc, index) => {
   const group = npcCharacters[index].group;
   group.position.set(npc.position.x, 0, npc.position.z);
   scene.add(group);
-  return { npc, group, index: 0, home: group.position.clone(), target: group.position.clone(), speed: 0.5, phase: 0, active: false };
+  return { npc, group, index: 0, order: index, home: group.position.clone(), target: group.position.clone(), speed: 0.5, phase: 0, active: false };
 });
 const npcActivity = createNPCActivity(npcGroups);
 const npcContextDialogue: Record<string, { threshold: number; text: string }> = {
