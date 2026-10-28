@@ -109,7 +109,7 @@
 - [x] Load tests verify reconnect restores player session, quest progress, inventory, personal pickups and shared world state
 - [x] Automated player collision test passes
 - [x] Automated five-quest vertical slice test passes
-- [ ] Green multiplayer load tests
+- [x] Green multiplayer load tests (2 / 5 / 10-player workflow passes in GitHub Actions)
 - [ ] Performance profiling
 - [ ] Server and networking security validation
 - [ ] Monitoring and error reporting
