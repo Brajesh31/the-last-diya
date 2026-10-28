@@ -97,7 +97,7 @@
 ## Phase 6 · Hardening
 - [x] Workspace type-check and build workflow added
 - [x] Workspace type-check and production build pass in GitHub Actions
-- [ ] Confirm the expanded smoke test for shared target-state synchronization passes on the latest commit
+- [x] Expanded multiplayer smoke test verifies main diya target-state synchronization
 - [ ] Green multiplayer load tests
 - [ ] Performance profiling
 - [ ] Server and networking security validation
