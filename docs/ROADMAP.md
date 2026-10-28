@@ -111,7 +111,9 @@
 - [x] Automated player collision test passes
 - [x] Automated five-quest vertical slice test passes
 - [x] Green multiplayer load tests (2 / 5 / 10-player workflow passes in GitHub Actions)
-- [ ] Server movement speed/bounds validation and room isolation tests pass
+- [x] Server rejects implausibly fast movement and out-of-bounds coordinates
+- [x] Room isolation tests verify player snapshots and shared diya state stay within each room
+- [x] Server movement speed/bounds validation and room isolation tests pass
 - [ ] Performance profiling
 - [ ] Server and networking security validation
 - [ ] Monitoring and error reporting
@@ -135,4 +137,4 @@
 Two browser windows join the same world. One player lights a diya, the other sees the change, and the shared Light Level updates. The street brightens, NPCs react, players can share flame and collect quest items, the Dark District unlocks at 90%, and both players can reach the final event.
 
 ### Validation note
-The character and environment systems are implemented as procedural prototypes. Workspace type-check/build, two-player cooperative tests, collision tests, the five-quest chain, and 2 / 5 / 10-player load tests currently pass in GitHub Actions. The load tests cover movement synchronization and reconnect recovery for quest progress, inventory, personal pickups and shared world state. A visual playtest in two real browser windows and final-art replacement remain outstanding.
+The character and environment systems are implemented as procedural prototypes. Workspace type-check/build, two-player cooperative smoke tests, collision tests, the five-quest chain, two-client Chromium checks for shared diya/personal quest rewards, server movement/bounds validation, room isolation, and 2 / 5 / 10-player load tests pass in GitHub Actions. Load tests also cover reconnect recovery for quest progress, inventory, personal pickups and shared world state. A manual visual playtest through the full five-quest chain in separate interactive browser windows and final-art replacement remain outstanding.
