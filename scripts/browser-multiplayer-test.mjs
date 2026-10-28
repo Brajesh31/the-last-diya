@@ -173,8 +173,16 @@ try {
 
   for (let targetLevel = 15, step = 0; targetLevel <= 100; targetLevel += 5, step += 1) {
     const page = step % 2 === 0 ? pages[0] : pages[1];
+    await page.bringToFront();
+    await page.waitForTimeout(180);
+    // Invoke the same interact() game function through the development-only bridge.
+    // This avoids background-tab keyboard focus deciding a server-authoritative action.
+    await page.evaluate(() => {
+      const bridge = window.__LAST_DIYA_E2E__;
+      if (!bridge) throw new Error('Development-only test bridge unavailable during flame share');
+      bridge.interact();
+    });
     await page.waitForTimeout(280);
-    await interact(page);
     try {
       await Promise.all(pages.map((clientPage) => clientPage.waitForFunction(
         (expectedLevel) => document.querySelector('.light-readout #light')?.textContent?.trim() === 'LIGHT ' + expectedLevel + '%',
