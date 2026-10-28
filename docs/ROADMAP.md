@@ -28,15 +28,23 @@
 ## Phase 2 · Core Gameplay — In progress
 - [x] Inventory primitives
 - [x] Item definitions
+- [x] Starting player inventory
+- [x] Server inventory state
+- [x] Inventory synchronization contract
+- [x] Inventory UI
 - [x] NPC definitions and dialogue data
+- [x] NPC interaction system
+- [x] Dialogue UI
 - [x] Quest definitions and state model
-- [ ] Inventory UI
+- [x] Server quest state
+- [x] Quest synchronization contract
+- [x] Quest UI
+- [x] First quest completion through diya interaction
 - [ ] Item pickup interactions
-- [ ] NPC interaction system
-- [ ] Dialogue UI
-- [ ] Quest UI and progression
+- [ ] Item collection rewards
 - [ ] Flame sharing
 - [ ] Shared world progression states
+- [ ] Quest reward pipeline
 
 ## Phase 3 · Multiplayer Prototype
 - Room lifecycle
