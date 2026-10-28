@@ -14,6 +14,7 @@ import { createNPCActivity } from './world/npc-activity';
 import { createNPCCharacter } from './world/npc-character';
 import { createPlayerCharacter, type PlayerCharacterVisual } from './world/player-character';
 import { createNeighbourhoodProps } from './world/neighbourhood-props';
+import { movePlayerWithCollision } from './world/player-collision';
 
 const root = document.getElementById('game')!;
 const scene = new THREE.Scene();
@@ -343,10 +344,8 @@ function update(now: number) {
     if (moveDirection.lengthSq() > 0) {
       playerMoving = true;
       moveDirection.normalize();
-      player.position.addScaledVector(moveDirection, 6 * deltaSeconds);
+      movePlayerWithCollision(player.position, moveDirection, 6 * deltaSeconds, darkDistrictUnlocked);
       player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
-      player.position.x = THREE.MathUtils.clamp(player.position.x, -3.2, 3.2);
-      player.position.z = THREE.MathUtils.clamp(player.position.z, darkDistrictUnlocked ? -27 : -19, darkDistrictUnlocked ? 19 : -0.01);
     }
   }
   const near = isNear(player.position, diya.position, 1.5);
