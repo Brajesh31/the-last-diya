@@ -51,12 +51,19 @@ try {
       if (message.type() === 'error') consoleErrors.push(`client ${index + 1}: ${message.text()}`);
     });
     page.on('requestfailed', (request) => consoleErrors.push(`client ${index + 1} request failed: ${request.url()} - ${request.failure()?.errorText ?? 'unknown'}`));
+    page.on('websocket', (ws) => {
+      ws.on('framereceived', (frame) => {
+        const payload = typeof frame.payload === 'string' ? frame.payload : '';
+        if (payload) console.log(`client ${index + 1} WS< ${payload.slice(0, 180)}`);
+      });
+    });
     await page.goto(gameUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    await page.locator('#game canvas').waitFor({ state: 'visible', timeout: timeoutMs }).catch(async (error) => {
+    await page.locator('#game canvas').waitFor({ state: 'attached', timeout: timeoutMs }).catch(async (error) => {
       const state = await page.evaluate(() => ({
         url: location.href,
         title: document.title,
         gameHtml: document.getElementById('game')?.innerHTML.slice(0, 500) ?? 'missing #game root',
+        canvasStyle: (() => { const canvas = document.querySelector('#game canvas'); if (!canvas) return 'missing'; const style = getComputedStyle(canvas); const rect = canvas.getBoundingClientRect(); return { display: style.display, visibility: style.visibility, opacity: style.opacity, width: rect.width, height: rect.height }; })(),
         bodyText: document.body.innerText.slice(0, 500),
       })).catch(() => ({ evaluate: 'page context unavailable' }));
       throw new Error(`Canvas did not render for client ${index + 1}: ${error.message}; page=${JSON.stringify(state)}; pageErrors=${failures.join(' | ')}; consoleErrors=${consoleErrors.join(' | ')}`);
