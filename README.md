@@ -4,9 +4,9 @@
 
 ## Status
 
-**Phase 1 · Technical Prototype — Multiplayer slice in progress**
+**Phase 4 · Vertical Slice — playable prototype, production content and release hardening in progress**
 
-The repository now contains the working browser game foundation, realtime WebSocket server, shared game contracts, room joining, player movement synchronization, server-authoritative diya interaction, and shared Light Level progression.
+The repository now includes a procedural 3D neighbourhood, player and NPC avatars, a five-quest vertical slice, inventory and dialogue systems, server-authoritative cooperative multiplayer, shared Light Level progression, collision, reconnect recovery, and automated smoke, quest, collision and 2 / 5 / 10-player load tests. Final art, a real-browser cooperative playtest, expanded content, advanced security/performance work and production deployment remain.
 
 ## Stack
 
