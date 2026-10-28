@@ -10,10 +10,14 @@ on:
   push:
     paths:
       - 'apps/server/**'
+      - 'apps/game/src/world/player-collision.ts'
       - 'packages/shared/**'
       - 'packages/game-core/**'
       - 'packages/networking/**'
       - 'scripts/multiplayer-smoke-test.mjs'
+      - 'scripts/player-collision-test.mjs'
+      - 'scripts/vertical-slice-quest-test.mjs'
+      - 'package.json'
       - '.github/workflows/multiplayer-smoke-test.yml'
 
 jobs:
@@ -49,6 +53,12 @@ jobs:
 
       - name: Run 2-player smoke test
         run: PLAYERS=${{ inputs.players || '2' }} node scripts/multiplayer-smoke-test.mjs
+
+      - name: Run player collision tests
+        run: npm run test:collision
+
+      - name: Run vertical slice quest chain
+        run: npm run test:vertical-slice
 
       - name: Server log
         if: always()
