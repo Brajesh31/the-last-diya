@@ -68,6 +68,8 @@ try {
   await waitFor('quest_update', (message) => message.quests?.[0]?.id === 'first-flame');
 
   // Confirm the server blocks later quest objectives out of order.
+  // Route around the bench at the market approach, matching the playable client path.
+  await moveTo(1.8, -8);
   await moveTo(2.5, -8);
   const lockedPromise = waitFor('error', (message) => message.code === 'QUEST_LOCKED');
   await sendAction({ type: 'pickup_request', targetId: 'market-stall-01' });

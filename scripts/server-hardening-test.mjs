@@ -133,6 +133,15 @@ try {
   await waitUntil('room A shared diya lights', () =>
     a1.lightLevel >= 10 && a2.lightLevel >= 10 &&
     a1.targetStates.has('diya-main-street-01') && a2.targetStates.has('diya-main-street-01'));
+  // Walk gradually to the road-facing edge of the bench, then attempt to step through it.
+  await moveClientTo(a1, 2.2, -5.5, [a2]);
+  await wait(120);
+  send(a1, { type: 'player_state', transform: { x: 2.8, y: 0.75, z: -5.5, rotation: 0 } });
+  await waitUntil('prop collision rejected', () => a1.errors.some((error) => error.code === 'COLLISION'));
+  assert.ok(Math.abs((a2.remoteTransforms.get(a1.id)?.x ?? 99) - 2.2) < 0.001, 'blocked prop movement must not broadcast');
+  assert.ok(Math.abs((a2.remoteTransforms.get(a1.id)?.z ?? 99) + 5.5) < 0.001, 'blocked prop movement must preserve the safe transform');
+  console.log('PASS: server rejects movement into a bench collision zone');
+
   await wait(250);
   assert.equal(b1.lightLevel, 0, 'room B light level must remain unchanged');
   assert.equal(b2.lightLevel, 0, 'room B light level must remain unchanged for every room peer');

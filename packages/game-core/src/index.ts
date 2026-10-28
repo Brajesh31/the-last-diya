@@ -13,3 +13,4 @@ export function isNear(a: { x: number; z: number }, b: { x: number; z: number },
 export function nextLightLevel(current: number, amount: number): number {
   return clampLightLevel(current + amount);
 }
+export * from './movement';

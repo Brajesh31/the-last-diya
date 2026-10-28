@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { DARK_DISTRICT_UNLOCK_LEVEL, DEFAULT_ROOM_CAPACITY, FINAL_EVENT_LEVEL, LIGHT_LEVEL_START, MAX_LIGHT_LEVEL } from '@the-last-diya/shared';
 import type { ClientMessage, InventoryItemState, ItemId, MemorySequenceState, PlayerTransform, QuestState, ServerMessage, WorldEventState } from '@the-last-diya/shared';
-import { STARTING_INVENTORY, canProgressQuest, getQuestDefinition, initialQuestStates, isNear } from '@the-last-diya/game-core';
+import { STARTING_INVENTORY, canProgressQuest, getQuestDefinition, initialQuestStates, isNear, isWalkablePosition } from '@the-last-diya/game-core';
 import { decodeMessage, encodeMessage } from '@the-last-diya/networking';
 
 const port = Number(process.env.PORT ?? 8787);
@@ -168,6 +168,12 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
     const allowedDistance = MAX_PLAYER_SPEED * elapsedSeconds + MOVEMENT_TOLERANCE;
     if (distance > allowedDistance) {
       send(socket, { type: 'error', code: 'MOVE_TOO_FAST', message: 'Movement was too fast; move through the neighbourhood more gradually' });
+      return;
+    }
+
+    const districtUnlocked = getRoomLight(player.roomId) >= DARK_DISTRICT_UNLOCK_LEVEL;
+    if (!isWalkablePosition(x, z, districtUnlocked)) {
+      send(socket, { type: 'error', code: 'COLLISION', message: 'That position is blocked by a neighbourhood object' });
       return;
     }
 

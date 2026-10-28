@@ -114,6 +114,7 @@
 - [x] Server rejects implausibly fast movement and out-of-bounds coordinates
 - [x] Room isolation tests verify player snapshots and shared diya state stay within each room
 - [x] Server movement speed/bounds validation and room isolation tests pass
+- [ ] Server rejects movement through benches, market stalls and the temple platform
 - [ ] Performance profiling
 - [ ] Server and networking security validation
 - [ ] Monitoring and error reporting
