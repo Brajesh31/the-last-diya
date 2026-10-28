@@ -6,6 +6,49 @@ const timeoutMs = Number(process.env.TIMEOUT_MS ?? 7000);
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const clients = [];
 
+async function verifyMalformedMessagesRejected() {
+  const socket = new WebSocket(url);
+  let timer;
+  const rejected = new Promise((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('malformed message was not rejected')), timeoutMs);
+    socket.on('open', () => socket.send(JSON.stringify({ type: 'join_room', roomId: { unexpected: 'object' } })));
+    socket.on('message', (raw) => {
+      let message;
+      try { message = JSON.parse(raw.toString()); } catch { return; }
+      if (message.type === 'error' && message.code === 'INVALID_MESSAGE') { clearTimeout(timer); resolve(message); }
+    });
+    socket.on('error', reject);
+  });
+  const message = await rejected;
+  assert.equal(message.code, 'INVALID_MESSAGE');
+  socket.close();
+  console.log('PASS server rejects malformed runtime message shapes without crashing');
+}
+
+async function verifyOversizedMessagesRejected() {
+  const socket = new WebSocket(url);
+  const closed = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { socket.terminate(); reject(new Error('oversized message was not closed')); }, timeoutMs);
+    socket.on('open', () => socket.send(JSON.stringify({ type: 'join_room', roomId: 'oversize', payload: 'x'.repeat(20 * 1024) })));
+    socket.on('close', (code, reason) => { clearTimeout(timer); resolve({ code, reason: reason.toString() }); });
+    socket.on('error', (error) => {
+      // The server may close the transport as soon as the receiver limit is exceeded.
+      if (socket.readyState === WebSocket.CLOSED) return;
+      reject(error);
+    });
+  });
+  const result = await closed;
+  assert.equal(result.code, 1009, `expected close code 1009, got ${result.code} (${result.reason})`);
+  console.log('PASS server rejects WebSocket payloads larger than 16 KiB');
+}
+
+async function closeClient(client) {
+  await new Promise((resolve) => {
+    if (client.socket.readyState === WebSocket.CLOSED) return resolve(undefined);
+    client.socket.once('close', resolve);
+    client.socket.close();
+  });
+}
 async function waitUntil(label, predicate, timeout = timeoutMs) {
   const started = Date.now();
   while (Date.now() - started < timeout) {
@@ -98,6 +141,9 @@ async function moveClientTo(client, x, z, observers) {
 }
 
 try {
+  await verifyMalformedMessagesRejected();
+  await verifyOversizedMessagesRejected();
+
   const roomA = 'hardening-a';
   const roomB = 'hardening-b';
   const a1 = await connectClient(1, roomA); clients.push(a1);
@@ -154,7 +200,29 @@ try {
   assert.ok(!b3.snapshot.litTargets.includes('diya-main-street-01'), 'late joiner must not inherit another room target state');
   console.log('PASS: late room B join receives only its room snapshot');
 
-  console.log('PASS server hardening | speed limit | world bounds | room state and snapshots are isolated');
+  const configuredGraceMs = Number(process.env.SESSION_GRACE_MS ?? 0);
+  if (configuredGraceMs > 0 && configuredGraceMs <= 10_000) {
+    const cleanupRoom = `cleanup-${Date.now()}`;
+    const cleanupA = await connectClient(6, cleanupRoom); clients.push(cleanupA);
+    const cleanupB = await connectClient(7, cleanupRoom); clients.push(cleanupB);
+    await waitUntil('temporary room clients join', () => cleanupA.id && cleanupA.snapshot && cleanupB.id && cleanupB.snapshot);
+    await moveClientTo(cleanupA, 0, -4, [cleanupB]);
+    await wait(120);
+    send(cleanupA, { type: 'interact_request', targetId: 'diya-main-street-01' });
+    await waitUntil('temporary room state is created', () => cleanupA.lightLevel >= 10 && cleanupB.lightLevel >= 10 && cleanupB.targetStates.has('diya-main-street-01'));
+    await Promise.all([closeClient(cleanupA), closeClient(cleanupB)]);
+    const heartbeatIntervalMs = Number(process.env.HEARTBEAT_INTERVAL_MS ?? 15_000);
+    await wait(Math.max(1800, configuredGraceMs + heartbeatIntervalMs + 350));
+    const cleanupC = await connectClient(8, cleanupRoom); clients.push(cleanupC);
+    await waitUntil('fresh state after expired sessions', () => cleanupC.id && cleanupC.snapshot);
+    assert.equal(cleanupC.snapshot.lightLevel, 0, 'expired empty room should not retain old Light Level');
+    assert.ok(!cleanupC.snapshot.litTargets.includes('diya-main-street-01'), 'expired empty room should not retain old lit targets');
+    console.log('PASS empty room state is cleaned after disconnected sessions expire');
+  } else {
+    console.log('SKIP room-expiry cleanup assertion; run server and test with SESSION_GRACE_MS <= 10000 to enable it');
+  }
+
+  console.log('PASS server hardening | payload limit | runtime validation | cleanup | speed limit | world bounds | room isolation');
 } finally {
   for (const client of clients) {
     if (client.socket.readyState !== WebSocket.CLOSED) client.socket.close();

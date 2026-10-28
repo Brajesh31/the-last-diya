@@ -120,6 +120,7 @@
 - [x] Initial CI profile recorded: 30 clients, 12 ticks, 10,440 / 10,440 peer deliveries, p50 4.03 ms, p95 10.71 ms, p99 12.86 ms, maximum 16.07 ms
 - [ ] Browser rendering benchmark with multiple remote avatars and foreground-tab frame-time reporting
 - [ ] Performance profiling
+- [ ] WebSocket payload limits, runtime message-shape validation and expired-room state cleanup
 - [ ] Server and networking security validation
 - [ ] Monitoring and error reporting
 - [ ] Analytics and playtest feedback loop

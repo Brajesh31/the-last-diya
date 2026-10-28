@@ -25,6 +25,9 @@ jobs:
   smoke-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      SESSION_GRACE_MS: '1200'
+      HEARTBEAT_INTERVAL_MS: '500'
     steps:
       - name: Checkout
         uses: actions/checkout@v4

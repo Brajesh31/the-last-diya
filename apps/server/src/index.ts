@@ -9,7 +9,7 @@ import { decodeMessage, encodeMessage } from '@the-last-diya/networking';
 
 const port = Number(process.env.PORT ?? 8787);
 const http = createServer((_, response) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ name: 'the-last-diya-server', status: 'ok', phase: 'vertical-slice' })); });
-const wss = new WebSocketServer({ server: http });
+const wss = new WebSocketServer({ server: http, maxPayload: 16 * 1024, perMessageDeflate: false });
 type Player = { id: string; sessionToken: string; roomId: string; socket: WebSocket; transform: PlayerTransform; inventory: InventoryItemState[]; quests: QuestState[]; lastStateAt: number; lastActionAt: number; lastPongAt: number };
 type DisconnectedSession = Omit<Player, 'socket' | 'lastStateAt' | 'lastActionAt' | 'lastPongAt'> & { expiresAt: number };
 const players = new Map<WebSocket, Player>();
@@ -30,9 +30,11 @@ const STATE_INTERVAL_MS = 80;
 const MAX_PLAYER_SPEED = 8;
 const MOVEMENT_TOLERANCE = 0.4;
 const ACTION_INTERVAL_MS = 250;
-const HEARTBEAT_INTERVAL_MS = 15_000;
+const heartbeatIntervalSetting = Number(process.env.HEARTBEAT_INTERVAL_MS);
+const HEARTBEAT_INTERVAL_MS = Number.isFinite(heartbeatIntervalSetting) && heartbeatIntervalSetting > 0 ? Math.max(250, heartbeatIntervalSetting) : 15_000;
 const HEARTBEAT_TIMEOUT_MS = 45_000;
-const SESSION_GRACE_MS = 60_000;
+const sessionGraceSetting = Number(process.env.SESSION_GRACE_MS);
+const SESSION_GRACE_MS = Number.isFinite(sessionGraceSetting) && sessionGraceSetting > 0 ? Math.max(1_000, sessionGraceSetting) : 60_000;
 // Keep room joins inside walkable bounds and clear of major collision props.
 const SPAWN_POSITIONS: PlayerTransform[] = [
   // Preserve the original starting spots for existing small-room tests.
@@ -85,19 +87,34 @@ const FIRST_MEMORY: MemorySequenceState = {
 };
 
 function send(socket: WebSocket, message: ServerMessage) { if (socket.readyState === WebSocket.OPEN) socket.send(encodeMessage(message)); }
-const CLIENT_MESSAGE_TYPES = new Set<ClientMessage['type']>([
-  'hello',
-  'join_room',
-  'player_state',
-  'interact_request',
-  'share_flame_request',
-  'pickup_request',
-  'memory_continue',
-  'final_event_ready',
-  'ping',
-]);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 function isClientMessage(message: { type: string }): message is ClientMessage {
-  return CLIENT_MESSAGE_TYPES.has(message.type as ClientMessage['type']);
+  const candidate = message as unknown as Record<string, unknown>;
+  if (typeof candidate.type !== 'string') return false;
+  switch (candidate.type) {
+    case 'hello':
+      return typeof candidate.clientVersion === 'string' && candidate.clientVersion.length > 0 && candidate.clientVersion.length <= 64 &&
+        (candidate.sessionToken === undefined || (typeof candidate.sessionToken === 'string' && candidate.sessionToken.length <= 128));
+    case 'join_room':
+      return typeof candidate.roomId === 'string' && candidate.roomId.length <= 128;
+    case 'player_state':
+      return isRecord(candidate.transform);
+    case 'interact_request':
+    case 'pickup_request':
+      return typeof candidate.targetId === 'string' && candidate.targetId.length > 0 && candidate.targetId.length <= 128;
+    case 'share_flame_request':
+      return typeof candidate.targetPlayerId === 'string' && candidate.targetPlayerId.length > 0 && candidate.targetPlayerId.length <= 128;
+    case 'memory_continue':
+      return typeof candidate.memoryId === 'string' && candidate.memoryId.length > 0 && candidate.memoryId.length <= 128;
+    case 'final_event_ready':
+      return true;
+    case 'ping':
+      return typeof candidate.timestamp === 'number' && Number.isFinite(candidate.timestamp);
+    default:
+      return false;
+  }
 }
 function broadcastRoom(roomId: string, message: ServerMessage, except?: WebSocket) { for (const player of players.values()) if (player.roomId === roomId && player.socket !== except) send(player.socket, message); }
 function getRoomLight(roomId: string) { return roomLight.get(roomId) ?? LIGHT_LEVEL_START; }
@@ -155,13 +172,35 @@ function startMemory(roomId: string) { if (!roomMemories.has(roomId)) { roomMemo
 function completeMemory(roomId: string, memoryId: MemorySequenceState['id']) { const memory = roomMemories.get(roomId); if (!memory || memory.id !== memoryId) return false; roomMemories.delete(roomId); broadcastRoom(roomId, { type: 'memory_completed', memoryId }); return true; }
 function startFinalEvent(roomId: string) { const existing = getFinalEvent(roomId); if (existing.active || existing.completed) return existing; const event: WorldEventState = { id: 'community-diya-celebration', active: true, completed: false, startedAt: Date.now() }; roomFinalEvents.set(roomId, event); broadcastRoom(roomId, { type: 'final_event_started', event }); return event; }
 function rateLimited(player: Player) { const now = Date.now(); if (now - player.lastActionAt < ACTION_INTERVAL_MS) return true; player.lastActionAt = now; return false; }
-function restoreSession(sessionToken: string | undefined, socket: WebSocket): Player | null { if (!sessionToken) return null; const saved = sessions.get(sessionToken); if (!saved || saved.expiresAt < Date.now()) { sessions.delete(sessionToken); return null; } sessions.delete(sessionToken); return { ...saved, socket, lastStateAt: Date.now(), lastActionAt: 0, lastPongAt: Date.now() }; }
+function cleanupRoomState(roomId: string) {
+  if ([...players.values()].some((player) => player.roomId === roomId)) return;
+  if ([...sessions.values()].some((session) => session.roomId === roomId)) return;
+  roomLight.delete(roomId);
+  roomMemories.delete(roomId);
+  roomFinalEvents.delete(roomId);
+  const roomPrefix = `${roomId}:`;
+  for (const key of litTargets) if (key.startsWith(roomPrefix)) litTargets.delete(key);
+  for (const key of pickedTargets) if (key.startsWith(roomPrefix)) pickedTargets.delete(key);
+}
+
+function restoreSession(sessionToken: string | undefined, socket: WebSocket): Player | null {
+  if (!sessionToken) return null;
+  const saved = sessions.get(sessionToken);
+  if (!saved) return null;
+  if (saved.expiresAt < Date.now()) {
+    sessions.delete(sessionToken);
+    cleanupRoomState(saved.roomId);
+    return null;
+  }
+  sessions.delete(sessionToken);
+  return { ...saved, socket, lastStateAt: Date.now(), lastActionAt: 0, lastPongAt: Date.now() };
+}
 
 function handleMessage(socket: WebSocket, message: ClientMessage) {
   if (message.type === 'hello') { const restored = restoreSession(message.sessionToken, socket); if (restored) { players.set(socket, restored); sendSession(restored, true); broadcastRoom(restored.roomId, { type: 'player_spawned', playerId: restored.id, roomId: restored.roomId, transform: restored.transform }, socket); sendRoomSnapshot(restored); sendPlayerState(restored); } return; }
   if (message.type === 'join_room') {
     if (players.has(socket)) { const existing = players.get(socket)!; if (existing.roomId === message.roomId) { sendRoomSnapshot(existing); sendPlayerState(existing); } return; }
-    const roomId = message.roomId.trim().slice(0, 32) || 'main';
+    const roomId = message.roomId.trim().replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 32) || 'main';
     const count = [...players.values()].filter((entry) => entry.roomId === roomId).length;
     if (count >= DEFAULT_ROOM_CAPACITY) { send(socket, { type: 'error', code: 'ROOM_FULL', message: 'Room is full' }); return; }
     const player: Player = { id: randomUUID(), sessionToken: randomUUID(), roomId, socket, transform: { ...SPAWN_POSITIONS[count] }, inventory: STARTING_INVENTORY.map((item) => ({ ...item })), quests: initialQuestStates(), lastStateAt: Date.now(), lastActionAt: 0, lastPongAt: Date.now() };
@@ -271,12 +310,34 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
 }
 
 wss.on('connection', (socket) => {
-  socket.on('message', (raw) => { const message = decodeMessage(raw.toString()); if (message && isClientMessage(message)) handleMessage(socket, message); });
+  let invalidMessageCount = 0;
+  socket.on('message', (raw) => {
+    const message = decodeMessage(raw.toString());
+    if (!message || !isClientMessage(message)) {
+      invalidMessageCount += 1;
+      send(socket, { type: 'error', code: 'INVALID_MESSAGE', message: 'Message shape or type is invalid' });
+      if (invalidMessageCount >= 5 && socket.readyState === WebSocket.OPEN) socket.close(1008, 'Invalid message sequence');
+      return;
+    }
+    handleMessage(socket, message);
+  });
   socket.on('pong', () => { const player = players.get(socket); if (player) player.lastPongAt = Date.now(); });
   socket.on('close', () => { const player = players.get(socket); if (!player) return; players.delete(socket); sessions.set(player.sessionToken, { id: player.id, sessionToken: player.sessionToken, roomId: player.roomId, transform: player.transform, inventory: player.inventory, quests: player.quests, expiresAt: Date.now() + SESSION_GRACE_MS }); broadcastRoom(player.roomId, { type: 'player_left', playerId: player.id }); });
   socket.on('error', () => socket.close());
 });
-const heartbeat = setInterval(() => { const now = Date.now(); for (const [token, session] of sessions) if (session.expiresAt < now) sessions.delete(token); for (const player of players.values()) { if (now - player.lastPongAt > HEARTBEAT_TIMEOUT_MS) { player.socket.terminate(); continue; } try { player.socket.ping(); } catch { player.socket.terminate(); } } }, HEARTBEAT_INTERVAL_MS);
+const heartbeat = setInterval(() => {
+  const now = Date.now();
+  for (const [token, session] of sessions) {
+    if (session.expiresAt < now) {
+      sessions.delete(token);
+      cleanupRoomState(session.roomId);
+    }
+  }
+  for (const player of players.values()) {
+    if (now - player.lastPongAt > HEARTBEAT_TIMEOUT_MS) { player.socket.terminate(); continue; }
+    try { player.socket.ping(); } catch { player.socket.terminate(); }
+  }
+}, HEARTBEAT_INTERVAL_MS);
 
 // Opt-in profiling for CI. This logs metrics without exposing a public metrics endpoint.
 let performanceMetricsTimer: NodeJS.Timeout | undefined;
