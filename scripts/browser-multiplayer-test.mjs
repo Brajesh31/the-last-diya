@@ -4,6 +4,7 @@ const gameUrl = process.env.GAME_URL ?? 'http://127.0.0.1:5174';
 const timeoutMs = Number(process.env.BROWSER_TIMEOUT_MS ?? 15000);
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const failures = [];
+const consoleErrors = [];
 let browser;
 
 async function waitForText(page, selector, text, label) {
@@ -41,13 +42,25 @@ async function walkToDoorway(page) {
 try {
   browser = await chromium.launch({
     headless: true,
-    args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'],
+    args: ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-webgl', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
   });
   const pages = [await browser.newPage({ viewport: { width: 1280, height: 800 } }), await browser.newPage({ viewport: { width: 1280, height: 800 } })];
   for (const [index, page] of pages.entries()) {
     page.on('pageerror', (error) => failures.push(`client ${index + 1}: ${error.message}`));
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(`client ${index + 1}: ${message.text()}`);
+    });
+    page.on('requestfailed', (request) => consoleErrors.push(`client ${index + 1} request failed: ${request.url()} - ${request.failure()?.errorText ?? 'unknown'}`));
     await page.goto(gameUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    await page.locator('#game canvas').waitFor({ state: 'visible', timeout: timeoutMs });
+    await page.locator('#game canvas').waitFor({ state: 'visible', timeout: timeoutMs }).catch(async (error) => {
+      const state = await page.evaluate(() => ({
+        url: location.href,
+        title: document.title,
+        gameHtml: document.getElementById('game')?.innerHTML.slice(0, 500) ?? 'missing #game root',
+        bodyText: document.body.innerText.slice(0, 500),
+      })).catch(() => ({ evaluate: 'page context unavailable' }));
+      throw new Error(`Canvas did not render for client ${index + 1}: ${error.message}; page=${JSON.stringify(state)}; pageErrors=${failures.join(' | ')}; consoleErrors=${consoleErrors.join(' | ')}`);
+    });
   }
 
   await Promise.all(pages.map((page) => page.waitForFunction(
@@ -89,6 +102,7 @@ try {
   console.log('PASS: player two independently collected the same personal pickup and received their own reward');
 
   if (failures.length) throw new Error(`Browser runtime errors: ${failures.join('; ')}`);
+  if (consoleErrors.length) console.log(`Browser console diagnostics: ${consoleErrors.join(' | ')}`);
   console.log('PASS: browser multiplayer end-to-end checks completed without page errors');
 } catch (error) {
   console.error(error);
