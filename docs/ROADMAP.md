@@ -1,13 +1,13 @@
 # The Last Diya Roadmap
 
-## Phase 0 · Pre-production — Complete
-- Game Design Document
-- Architecture
-- Networking contract
-- MVP scope
-- Asset and cultural direction
+## Phase 0 · Pre-production | Complete
+- [x] Game Design Document
+- [x] Architecture
+- [x] Networking contract
+- [x] MVP scope
+- [x] Asset and cultural direction
 
-## Phase 1 · Technical Prototype — Complete
+## Phase 1 · Technical Prototype | Complete
 - [x] npm workspace monorepo
 - [x] React + Vite web shell
 - [x] Three.js game client
@@ -25,30 +25,28 @@
 - [x] Server-side interaction distance validation
 - [x] Shared Light Level synchronization
 
-## Phase 2 · Core Gameplay — In progress
-- [x] Inventory primitives
-- [x] Item definitions
+## Phase 2 · Core Gameplay | In progress
+- [x] Inventory primitives and item definitions
 - [x] Starting player inventory
-- [x] Server inventory state
-- [x] Inventory synchronization contract
+- [x] Server inventory state and synchronization
 - [x] Inventory UI
 - [x] NPC definitions and dialogue data
 - [x] NPC interaction system
 - [x] Dialogue UI
 - [x] Quest definitions and state model
-- [x] Server quest state
-- [x] Quest synchronization contract
+- [x] Server quest state and synchronization
 - [x] Quest UI
 - [x] First quest completion through diya interaction
 - [x] Item pickup interactions
 - [x] Server-authoritative item collection
 - [x] Pickup rewards into inventory
+- [x] Quest prerequisite enforcement and reward pipeline
 - [x] Flame sharing between nearby players
 - [x] Shared world progression state
-- [x] Quest reward pipeline
 - [x] Final Dark District interaction
+- [ ] Extended quest content beyond the five-quest vertical slice
 
-## Phase 3 · Multiplayer Prototype — In progress
+## Phase 3 · Multiplayer Prototype | In progress
 - [x] Room lifecycle
 - [x] Player spawn/despawn
 - [x] Movement synchronization
@@ -60,49 +58,64 @@
 - [x] Client reconnect loop
 - [x] Personal player-state restoration across reconnects
 - [x] Automated multiplayer smoke-test script
-- [x] CI workflow for multiplayer smoke tests
 - [x] 2 / 5 / 10-player load-test script
-- [x] CI workflow for multiplayer load tests
+- [x] GitHub Actions workflows for multiplayer smoke and load tests
+- [ ] Get multiplayer smoke and load-test workflows passing on the current branch
+- [ ] Validate 20 / 30-player sessions
 
-## Phase 4 · Vertical Slice — In progress
-- [x] One complete neighbourhood slice
-- [x] Five NPCs
-- [x] Five quests
+## Phase 4 · Vertical Slice | In progress
+- [x] One compact neighbourhood blockout
+- [x] Five NPCs and five-quest progression chain
 - [x] One memory sequence
-- [x] Market and temple-area storytelling
-- [x] Final event prototype
-- [x] Dynamic neighbourhood transformation from Light Level
-- [ ] Ambient audio pass
-- [ ] Environmental storytelling pass
+- [x] Market and temple-area storytelling prototypes
+- [x] Final community celebration prototype
+- [x] Dynamic neighbourhood transformation driven by shared Light Level
+- [x] Ambient audio prototype
+- [x] Environmental storytelling prototype
+- [x] Atmosphere and ember particle prototype
+- [x] Procedural doors, windows, benches, stalls and street lamps
+- [x] Role-specific procedural NPC characters
+- [x] NPC idle animations, contextual activity zones and Light-Level dialogue
+- [x] Procedural third-person player avatar
+- [x] Local and remote avatar animation
+- [x] Carried diya glow responds to Light Level
+- [ ] Replace prototype geometry with authored, final-quality character and environment assets
+- [ ] Playtest full quest progression with two real browser clients
 
 ## Phase 5 · Production Content
-- Full quest set
-- More memories
-- Audio
-- Particles
-- Environmental storytelling
-- Dynamic events
+- [ ] Full quest set and additional memories
+- [ ] Production-ready dialogue and narrative sequences
+- [ ] Final character models, rigging and animations
+- [ ] Final environment art, materials and lighting
+- [ ] Production audio mix and positional sound design
+- [ ] Additional community-driven world events
 
 ## Phase 6 · Hardening
-- 2 / 5 / 10 / 20 / 30 player tests
-- Performance profiling
-- Security validation
-- Monitoring
-- Analytics
+- [x] Workspace type-check and build workflow added
+- [ ] Green CI for workspace type-checks and builds
+- [ ] Green multiplayer smoke test
+- [ ] Green multiplayer load tests
+- [ ] Performance profiling
+- [ ] Server and networking security validation
+- [ ] Monitoring and error reporting
+- [ ] Analytics and playtest feedback loop
 
 ## Phase 7 · Mobile Browser
-- Touch controls
-- Low-quality rendering mode
-- Mobile performance pass
-- Device testing
+- [ ] Touch controls
+- [ ] Low-quality rendering mode
+- [ ] Mobile performance pass
+- [ ] Device testing
 
 ## Phase 8 · Production Launch
-- Staging environment
-- Load testing
-- Deployment automation
-- Backups
-- Incident procedures
-- Public launch
+- [ ] Staging environment
+- [ ] Production load testing
+- [ ] Deployment automation
+- [ ] Backups
+- [ ] Incident procedures
+- [ ] Public launch
 
 ### First real-game milestone
-Two browser windows join the same world, one player lights a diya, the other sees the change, the shared Light Level updates, the street becomes brighter, an NPC reacts, players can share flame and collect quest items, the Dark District unlocks at 90%, and both players reach the final event.
+Two browser windows join the same world. One player lights a diya, the other sees the change, and the shared Light Level updates. The street brightens, NPCs react, players can share flame and collect quest items, the Dark District unlocks at 90%, and both players can reach the final event.
+
+### Validation note
+The character and environment systems are implemented as procedural prototypes. The automated workspace and multiplayer workflows are being used to expose and fix existing TypeScript and CI setup issues; do not treat the vertical slice as validated until those checks pass and the quest chain is playtested in two browser clients.
