@@ -6,6 +6,7 @@ import type { InventoryItemState, PlayerId, PlayerTransform, QuestState, ServerM
 import { createGameUi, installGameUiStyles } from './game-ui';
 import { createCelebration } from './world/celebration';
 import { createMemoryMarker, createMemorySequence } from './world/memory-sequence';
+import { applyNeighbourhoodLight, createNeighbourhoodState } from './world/neighbourhood-state';
 
 const root = document.getElementById('game')!;
 const scene = new THREE.Scene();
@@ -38,6 +39,7 @@ for (let i = -18; i <= 18; i += 6) for (const x of [-6, 6]) {
   house.castShadow = true;
   scene.add(house);
 }
+const neighbourhood = createNeighbourhoodState(scene);
 
 const diya = new THREE.Group();
 const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8b5a35, roughness: 0.8 }));
@@ -136,10 +138,13 @@ let sessionToken = localStorage.getItem('the-last-diya-session') ?? undefined;
 function setLightLevel(value: number) {
   lightLevel = clampLightLevel(value);
   document.getElementById('light')!.textContent = `LIGHT ${lightLevel}%`;
-  hemi.intensity = 0.45 + lightLevel / 300;
+  const ambience = applyNeighbourhoodLight(neighbourhood, lightLevel);
+  hemi.intensity = 0.45 + ambience.targetExposure * 0.25;
   scene.background.set(lightLevel > 0 ? 0x15110b : 0x080a0a);
-  scene.fog = new THREE.Fog(lightLevel > 0 ? 0x15110b : 0x080a0a, 20, 60);
+  scene.fog = new THREE.Fog(lightLevel > 0 ? 0x15110b : 0x080a0a, 20 - ambience.street * 2, 60 + ambience.homes * 15);
   diyaLight.intensity = 1.8 + lightLevel / 20;
+  const targetDark = lightLevel >= DARK_DISTRICT_UNLOCK_LEVEL;
+  if (targetDark && !darkDistrictUnlocked) prompt.textContent = 'The Dark District is awake. The final path has opened.';
 }
 function send(message: Parameters<typeof encodeMessage>[0]) { if (socket?.readyState === WebSocket.OPEN) socket.send(encodeMessage(message)); }
 function clearRemotePlayers() { for (const remote of remotePlayers.values()) { scene.remove(remote.mesh); remote.mesh.geometry.dispose(); (remote.mesh.material as THREE.Material).dispose(); } remotePlayers.clear(); }
