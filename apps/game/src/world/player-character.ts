@@ -139,7 +139,6 @@ function createLowDetailRemoteCharacter(identity: string, palette: CharacterPale
 export function createPlayerCharacter(identity: string, local = false, lowDetailRemote = false): PlayerCharacterVisual {
   const palette = paletteFor(identity, local);
   if (!local && lowDetailRemote) return createLowDetailRemoteCharacter(identity, palette);
-  const palette = paletteFor(identity, local);
   const group = new THREE.Group();
   group.name = local ? 'player-character-local' : `player-character-${identity}`;
 
