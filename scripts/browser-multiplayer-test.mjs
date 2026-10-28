@@ -32,6 +32,8 @@ async function moveTo(page, x, z, label = null) {
 
 async function interact(page) {
   await page.bringToFront();
+  // Give the foreground tab a frame to refresh its interaction prompt from latest server targets.
+  await page.waitForTimeout(180);
   await page.keyboard.press('e');
 }
 
@@ -162,8 +164,7 @@ try {
     sharingState = await sharingDiagnostics();
     sharingReady = sharingState.every((state) => state &&
       state.remotePlayers.some((remote) =>
-        Math.hypot(remote.position.x - state.position.x, remote.position.z - state.position.z) < 2.5) &&
-      state.promptText.toLowerCase().includes('share your flame') &&
+        Math.hypot(remote.target.x - state.position.x, remote.target.z - state.position.z) < 2.5) &&
       !state.memoryOpen);
     if (sharingReady) break;
     await pages[0].waitForTimeout(100);

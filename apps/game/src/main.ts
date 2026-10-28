@@ -332,7 +332,7 @@ function interact() {
   if (darkDistrictUnlocked && lightLevel >= FINAL_EVENT_LEVEL && isNear(player.position, communityDiya.position, 2.2)) { send({ type: 'interact_request', targetId: 'community-diya-01' }); return; }
   const nearbyPickup = [...pickups.values()].find((entry) => !entry.collected && isNear(player.position, entry.mesh.position, 1.5));
   if (nearbyPickup) { send({ type: 'pickup_request', targetId: nearbyPickup.definition.id }); return; }
-  const nearbyRemote = [...remotePlayers.entries()].find(([, remote]) => isNear(player.position, remote.mesh.position, 2.5));
+  const nearbyRemote = [...remotePlayers.entries()].find(([, remote]) => isNear(player.position, remote.target, 2.5));
   if (nearbyRemote) { send({ type: 'share_flame_request', targetPlayerId: nearbyRemote[0] }); return; }
   const nearest = npcGroups.find((entry) => isNear(player.position, entry.group.position, 1.5));
   if (nearest) {
@@ -450,7 +450,7 @@ function update(now: number) {
   const near = isNear(player.position, diya.position, 1.5);
   const finalNear = darkDistrictUnlocked && lightLevel >= FINAL_EVENT_LEVEL && isNear(player.position, communityDiya.position, 2.2);
   const pickup = [...pickups.values()].find((entry) => !entry.collected && isNear(player.position, entry.mesh.position, 1.5));
-  const remote = [...remotePlayers.values()].find((entry) => isNear(player.position, entry.mesh.position, 2.5));
+  const remote = [...remotePlayers.values()].find((entry) => isNear(player.position, entry.target, 2.5));
   const nearNpc = npcGroups.find((entry) => isNear(player.position, entry.group.position, 1.5));
   if (ui.dialogue.hidden && !lockedByMemory) prompt.textContent = near && !litLocally ? 'Press E to light the diya' : near ? 'Press E to carry the shared flame forward' : finalNear && !finalEventActive ? 'Press E to light the community diya' : pickup ? `Press E to collect ${pickup.definition.label}` : remote ? 'Press E to share your flame' : nearNpc ? `Press E to talk to ${nearNpc.npc.name}` : darkDistrictUnlocked ? 'The Dark District remembers' : `Shared Light Level ${lightLevel}%`;
   if (now - lastNetworkSend > 100 && !lockedByMemory) { send({ type: 'player_state', transform: playerTransform() }); lastNetworkSend = now; }
