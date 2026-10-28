@@ -30,8 +30,10 @@ type Player = {
 
 const players = new Map<WebSocket, Player>();
 const roomLight = new Map<string, number>();
+const litTargets = new Set<string>();
 const DIYA_TARGET_ID = 'diya-main-street-01';
-
+const DIYA_POSITION = { x: 0, z: -4 };
+const INTERACTION_RADIUS = 2.2;
 const spawnTransform: PlayerTransform = { x: 0, y: 0.75, z: 4, rotation: 0 };
 
 function send(socket: WebSocket, message: ServerMessage) {
@@ -116,8 +118,32 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
       send(socket, { type: 'error', code: 'INVALID_TARGET', message: 'Unknown interaction target' });
       return;
     }
+
+    const distance = Math.hypot(
+      player.transform.x - DIYA_POSITION.x,
+      player.transform.z - DIYA_POSITION.z,
+    );
+    if (distance > INTERACTION_RADIUS) {
+      send(socket, { type: 'error', code: 'TOO_FAR', message: 'Move closer to the diya' });
+      return;
+    }
+
+    const targetKey = `${player.roomId}:${DIYA_TARGET_ID}`;
+    if (litTargets.has(targetKey)) {
+      send(socket, {
+        type: 'interaction_result',
+        success: true,
+        targetId: DIYA_TARGET_ID,
+        lightLevel: getRoomLight(player.roomId),
+        source: player.id,
+      });
+      return;
+    }
+
     const nextLevel = Math.min(MAX_LIGHT_LEVEL, getRoomLight(player.roomId) + 10);
     roomLight.set(player.roomId, nextLevel);
+    litTargets.add(targetKey);
+
     broadcastRoom(player.roomId, {
       type: 'interaction_result',
       success: true,
