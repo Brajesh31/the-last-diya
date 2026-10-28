@@ -125,7 +125,7 @@ export function createNeighbourhoodProps(scene: THREE.Scene) {
       const lamp = lamps[i];
       const flicker = 0.92 + Math.sin(elapsedSeconds * 5.2 + i * 1.9) * 0.06;
       lamp.light.intensity = lamp.baseIntensity * street * flicker;
-      lamp.glow.material.opacity = Math.min(0.85, street * 0.9);
+      (lamp.glow.material as THREE.MeshBasicMaterial).opacity = Math.min(0.85, street * 0.9);
       lamp.glow.scale.setScalar(0.8 + street * 0.3);
     }
   };
