@@ -48,6 +48,20 @@ const FIRST_MEMORY: MemorySequenceState = {
 };
 
 function send(socket: WebSocket, message: ServerMessage) { if (socket.readyState === WebSocket.OPEN) socket.send(encodeMessage(message)); }
+const CLIENT_MESSAGE_TYPES = new Set<ClientMessage['type']>([
+  'hello',
+  'join_room',
+  'player_state',
+  'interact_request',
+  'share_flame_request',
+  'pickup_request',
+  'memory_continue',
+  'final_event_ready',
+  'ping',
+]);
+function isClientMessage(message: { type: string }): message is ClientMessage {
+  return CLIENT_MESSAGE_TYPES.has(message.type as ClientMessage['type']);
+}
 function broadcastRoom(roomId: string, message: ServerMessage, except?: WebSocket) { for (const player of players.values()) if (player.roomId === roomId && player.socket !== except) send(player.socket, message); }
 function getRoomLight(roomId: string) { return roomLight.get(roomId) ?? LIGHT_LEVEL_START; }
 function unlockedDistricts(roomId: string) { return getRoomLight(roomId) >= DARK_DISTRICT_UNLOCK_LEVEL ? ['dark-district'] : []; }
@@ -180,7 +194,7 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
 }
 
 wss.on('connection', (socket) => {
-  socket.on('message', (raw) => { const message = decodeMessage(raw.toString()); if (message) handleMessage(socket, message); });
+  socket.on('message', (raw) => { const message = decodeMessage(raw.toString()); if (message && isClientMessage(message)) handleMessage(socket, message); });
   socket.on('pong', () => { const player = players.get(socket); if (player) player.lastPongAt = Date.now(); });
   socket.on('close', () => { const player = players.get(socket); if (!player) return; players.delete(socket); sessions.set(player.sessionToken, { id: player.id, sessionToken: player.sessionToken, roomId: player.roomId, transform: player.transform, inventory: player.inventory, quests: player.quests, expiresAt: Date.now() + SESSION_GRACE_MS }); broadcastRoom(player.roomId, { type: 'player_left', playerId: player.id }); });
   socket.on('error', () => socket.close());
