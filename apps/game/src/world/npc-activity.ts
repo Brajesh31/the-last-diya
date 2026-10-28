@@ -5,6 +5,7 @@ export interface NPCActivityEntry {
   npc: NpcDefinition;
   group: THREE.Group;
   index: number;
+  order: number;
   home: THREE.Vector3;
   target: THREE.Vector3;
   speed: number;
@@ -57,21 +58,21 @@ const scratchOffset = new THREE.Vector3();
 
 function chooseTarget(entry: NPCActivityEntry, lightLevel: number, elapsedSeconds: number) {
   const offsets = ACTIVITY_OFFSETS[entry.npc.id];
-  const routeIndex = Math.floor(elapsedSeconds * 0.32 + entry.index * 1.7) % offsets.length;
+  const routeIndex = Math.floor(elapsedSeconds * 0.32 + entry.order * 1.7) % offsets.length;
   scratchOffset.copy(offsets[routeIndex]);
   const activity = THREE.MathUtils.smoothstep(lightLevel, ACTIVITY_START[entry.npc.id], Math.min(100, ACTIVITY_START[entry.npc.id] + 25));
   const marketBoost = lightLevel >= 50 && (entry.npc.id === 'mithai-seller' || entry.npc.id === 'chai-seller') ? 1.18 : 1;
   entry.target.copy(entry.home).addScaledVector(scratchOffset, (0.65 + activity * 0.35) * marketBoost);
   entry.target.y = 0;
-  entry.phase = elapsedSeconds + entry.index * 1.7;
+  entry.phase = elapsedSeconds + entry.order * 1.7;
 }
 
 export function createNPCActivity(entries: NPCActivityEntry[]) {
   for (const entry of entries) {
     entry.home = entry.group.position.clone();
     entry.target = entry.home.clone();
-    entry.speed = entry.npc.id === 'unknown-stranger' ? 0.28 : entry.npc.id === 'temple-caretaker' ? 0.34 : 0.45 + (entry.index % 3) * 0.06;
-    entry.phase = entry.index * 1.7;
+    entry.speed = entry.npc.id === 'unknown-stranger' ? 0.28 : entry.npc.id === 'temple-caretaker' ? 0.34 : 0.45 + (entry.order % 3) * 0.06;
+    entry.phase = entry.order * 1.7;
   }
 
   return {
