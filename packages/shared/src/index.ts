@@ -34,6 +34,8 @@ export type ClientMessage =
   | { type: 'join_room'; roomId: RoomId }
   | { type: 'player_state'; transform: PlayerTransform }
   | { type: 'interact_request'; targetId: string }
+  | { type: 'share_flame_request'; targetPlayerId: PlayerId }
+  | { type: 'pickup_request'; targetId: string }
   | { type: 'ping'; timestamp: number };
 
 export type ServerMessage =
@@ -44,5 +46,8 @@ export type ServerMessage =
   | { type: 'interaction_result'; success: boolean; targetId: string; lightLevel: number; source: PlayerId }
   | { type: 'inventory_update'; playerId: PlayerId; items: InventoryItemState[] }
   | { type: 'quest_update'; playerId: PlayerId; quests: QuestState[] }
+  | { type: 'flame_shared'; fromPlayerId: PlayerId; toPlayerId: PlayerId; lightLevel: number }
+  | { type: 'pickup_result'; success: boolean; targetId: string; itemId: ItemId; quantity: number }
+  | { type: 'world_state'; lightLevel: number; unlockedDistricts: string[] }
   | { type: 'pong'; timestamp: number }
   | { type: 'error'; code: string; message: string };
