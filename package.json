@@ -27,7 +27,8 @@
     "test:protocol": "node --import tsx scripts/protocol-compatibility-test.mjs",
     "test:network-experience": "node --import tsx scripts/network-experience-test.mjs",
     "test:experience-feedback": "node --import tsx scripts/experience-feedback-test.mjs",
-    "test:experience-state": "node --import tsx scripts/experience-state-regression-test.mjs"
+    "test:experience-state": "node --import tsx scripts/experience-state-regression-test.mjs",
+    "test:reconnect-final-event": "node --import tsx scripts/reconnect-final-event-regression-test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"
