@@ -1,0 +1,6 @@
+# Example TLS reverse proxy for the persistent Node WebSocket server.
+# Replace game-server.example.com with the real hostname.
+
+game-server.example.com {
+  reverse_proxy 127.0.0.1:8787
+}
