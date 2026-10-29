@@ -30,6 +30,8 @@ jobs:
         run: npm run typecheck
       - name: Build
         run: npm run build
+      - name: Build performance budget
+        run: npm run test:build:budget
       - name: Protocol regression
         run: npm run test:protocol
       - name: Network experience regression
@@ -50,22 +52,22 @@ jobs:
           PORT=8787 node apps/server/dist/index.js > /tmp/the-last-diya-server.log 2>&1 &
           echo $! > /tmp/the-last-diya-server.pid
           for attempt in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/health > /dev/null; then
-              exit 0
-            fi
+            if curl -fsS http://127.0.0.1:8787/health > /dev/null; then exit 0; fi
             sleep 1
           done
           cat /tmp/the-last-diya-server.log
           exit 1
+      - name: Production health regression
+        env:
+          HEALTH_URL: http://127.0.0.1:8787
+        run: npm run test:production:health
       - name: Start game client
         shell: bash
         run: |
           npm run preview --workspace=@the-last-diya/game -- --host 127.0.0.1 --port 5174 > /tmp/the-last-diya-client.log 2>&1 &
           echo $! > /tmp/the-last-diya-client.pid
           for attempt in {1..30}; do
-            if curl -fsS http://127.0.0.1:5174/?e2e=1 > /dev/null; then
-              exit 0
-            fi
+            if curl -fsS http://127.0.0.1:5174/?e2e=1 > /dev/null; then exit 0; fi
             sleep 1
           done
           cat /tmp/the-last-diya-client.log
@@ -77,7 +79,13 @@ jobs:
           BROWSER_TIMEOUT_MS: 30000
           BROWSER_STARTUP_TIMEOUT_MS: 60000
         run: npm run test:browser:multiplayer
-      - name: Upload browser diagnostics on failure
+      - name: Browser mobile journey
+        env:
+          GAME_URL: http://127.0.0.1:5174/?e2e=1
+          GAME_SERVER_URL: ws://127.0.0.1:8787
+          BROWSER_TIMEOUT_MS: 30000
+        run: npm run test:browser:mobile
+      - name: Browser diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
