@@ -422,7 +422,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
   };
   testWindow.__LAST_DIYA_E2E__ = {
     setShadowMapEnabled(enabled) { renderer.shadowMap.enabled = enabled; },
-    setGraphicsQuality(quality) { applyGraphicsQuality(quality === 'low'); },
+    setGraphicsQuality(quality: 'low' | 'high') { applyGraphicsQuality(quality === 'low'); },
     async moveTo(x, z) {
       if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error('Test position must be finite');
       const startX = player.position.x;
@@ -464,6 +464,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         remoteAvatarLodEnabled,
         touchControlsVisible: Boolean(document.querySelector('.touch-controls')),
         graphicsQuality: lowQualityMode ? 'low' : 'high',
+        setGraphicsQuality: (quality: 'low' | 'high') => applyGraphicsQuality(quality === 'low'),
         rendererInfo: {
           calls: renderer.info.render.calls,
           triangles: renderer.info.render.triangles,
