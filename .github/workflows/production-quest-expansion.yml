@@ -1,0 +1,67 @@
+name: Production Quest Expansion
+
+on:
+  push:
+    paths:
+      - '.github/workflows/production-quest-expansion.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  expand-quest:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add post-finale cooperative quest
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'Expected text not found in {path}: {old[:100]}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace('packages/shared/src/index.ts',
+              "export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya';",
+              "export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya' | 'share-the-light';")
+
+          replace('packages/game-core/src/quests.ts',
+              "export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya';",
+              "export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya' | 'share-the-light';")
+          replace('packages/game-core/src/quests.ts',
+              "  { id: 'last-diya', title: 'The Last Diya', description: 'Carry the final flame to the dark district.', requires: ['temple-memory'] },\n];",
+              "  { id: 'last-diya', title: 'The Last Diya', description: 'Carry the final flame to the dark district.', requires: ['temple-memory'] },\n  { id: 'share-the-light', title: 'Share the Light', description: 'Keep the celebration alive by sharing your flame with three neighbours.', requires: ['last-diya'], reward: { itemId: 'sweet', quantity: 2 } },\n];")
+          replace('packages/game-core/src/quests.ts',
+              "target: quest.id === 'market-lights' ? 3 : 1,",
+              "target: quest.id === 'market-lights' || quest.id === 'share-the-light' ? 3 : 1,")
+
+          replace('apps/server/src/index.ts',
+              "  if (message.type === 'share_flame_request') {\n    if (rateLimited(player)) return;",
+              "  if (message.type === 'share_flame_request') {\n    if (rateLimited(player)) return;")
+          replace('apps/server/src/index.ts',
+              "    increaseLight(player.roomId, player.id, 5); broadcastRoom(player.roomId, { type: 'flame_shared', fromPlayerId: player.id, toPlayerId: target.id, lightLevel: getRoomLight(player.roomId) }); return;",
+              "    increaseLight(player.roomId, player.id, 5);\n    // The post-finale epilogue is personal: every player must make three meaningful shares.\n    advanceQuest(player, 'share-the-light');\n    broadcastRoom(player.roomId, { type: 'flame_shared', fromPlayerId: player.id, toPlayerId: target.id, lightLevel: getRoomLight(player.roomId) }); return;")
+
+          replace('apps/game/src/main.ts',
+              "  'unknown-stranger': { threshold: 85, text: 'The last district is opening. Some memories return only when the light is shared.' },",
+              "  'unknown-stranger': { threshold: 85, text: 'The last district is opening. Some memories return only when the light is shared.' },\n  'share-the-light': { threshold: 100, text: 'The street is bright again. Do not let the flame stop with you. Share it.' },")
+
+          replace('docs/ROADMAP.md',
+              "- [ ] Extended quest content beyond the five-quest vertical slice",
+              "- [x] First post-finale cooperative epilogue quest: Share the Light\n- [ ] Extended quest content beyond the six-quest story arc")
+      - name: Verify and commit
+        shell: bash
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/shared/src/index.ts packages/game-core/src/quests.ts apps/server/src/index.ts apps/game/src/main.ts docs/ROADMAP.md
+          git commit -m 'feat: add post-finale Share the Light quest' || exit 0
+          git push
