@@ -209,6 +209,7 @@ applyGraphicsQuality(lowQualityMode);
 
 installGameUiStyles();
 const ui = createGameUi();
+ui.setTouchMode(touchDevice);
 const prompt = document.createElement('div');
 prompt.className = 'prompt';
 prompt.textContent = 'Connecting to the neighbourhood...';
@@ -486,60 +487,44 @@ let previousTime = performance.now();
 function update(now: number) {
   const deltaSeconds = Math.min((now - previousTime) / 1000, 0.05);
   previousTime = now;
-  const lockedByMemory = memorySequence.isOpen();
-  let playerMoving = false;
-  if (!lockedByMemory) {
-    moveDirection.set(
-      (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0),
-      0,
-      (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0),
-    );
-    if (moveDirection.lengthSq() > 0) {
-      playerMoving = true;
-      moveDirection.normalize();
-      movePlayerWithCollision(player.position, moveDirection, 6 * deltaSeconds, darkDistrictUnlocked);
-      player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
+  const inputX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));
+  const inputZ = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
+  moveDirection.set(inputX, 0, inputZ);
+  if (moveDirection.lengthSq() > 0) {
+    moveDirection.normalize();
+    movePlayerWithCollision(player.position, moveDirection, deltaSeconds * 3.2, darkDistrictUnlocked);
+    player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
+    if (now - lastNetworkSend > 80) {
+      lastNetworkSend = now;
+      send({ type: 'player_state', transform: playerTransform() });
     }
   }
-  const near = isNear(player.position, diya.position, 1.5);
-  const finalNear = darkDistrictUnlocked && lightLevel >= FINAL_EVENT_LEVEL && isNear(player.position, communityDiya.position, 2.2);
-  const pickup = [...pickups.values()].find((entry) => !entry.collected && isNear(player.position, entry.mesh.position, 1.5));
-  const remote = [...remotePlayers.values()].find((entry) => isNear(player.position, entry.target, 2.5));
-  const nearNpc = npcGroups.find((entry) => isNear(player.position, entry.group.position, 1.5));
-  if (ui.dialogue.hidden && !lockedByMemory) prompt.textContent = near && !litLocally ? 'Press E to light the diya' : near ? 'Press E to carry the shared flame forward' : finalNear && finalEventActive ? 'The neighbourhood is alive again.' : finalNear && !finalEventActive ? 'Press E to light the community diya' : pickup ? `Press E to collect ${pickup.definition.label}` : remote ? 'Press E to share your flame' : nearNpc ? `Press E to talk to ${nearNpc.npc.name}` : darkDistrictUnlocked ? 'The Dark District remembers' : `Shared Light Level ${lightLevel}%`;
-  if (now - lastNetworkSend > 100 && !lockedByMemory) { send({ type: 'player_state', transform: playerTransform() }); lastNetworkSend = now; }
-  playerCharacter.update(lightLevel, now / 1000, deltaSeconds, playerMoving);
-  for (const remoteEntry of remotePlayers.values()) {
-    const remoteMoving = remoteEntry.mesh.position.distanceToSquared(remoteEntry.target) > 0.0025;
-    remoteEntry.visual.update(lightLevel, now / 1000, deltaSeconds, remoteMoving);
-    remoteEntry.mesh.position.lerp(remoteEntry.target, 0.18);
-    remoteEntry.mesh.rotation.y = THREE.MathUtils.lerp(remoteEntry.mesh.rotation.y, remoteEntry.rotation, 0.18);
+  playerCharacter.update(deltaSeconds, moveDirection.lengthSq() > 0);
+  for (const remote of remotePlayers.values()) {
+    remote.mesh.position.lerp(remote.target, Math.min(1, deltaSeconds * 10));
+    remote.mesh.rotation.y = THREE.MathUtils.lerp(remote.mesh.rotation.y, remote.rotation, Math.min(1, deltaSeconds * 10));
+    remote.visual.update(deltaSeconds, remote.mesh.position.distanceTo(remote.target) > 0.02);
   }
-  npcActivity.update(lightLevel, now / 1000, deltaSeconds);
-  npcCharacters.forEach((character, index) => character.update(lightLevel, now / 1000, deltaSeconds, npcGroups[index].active));
-  environmentStory.update(lightLevel, now / 1000);
-  atmosphereVfx.update(lightLevel, deltaSeconds, now / 1000);
-  neighbourhoodProps.update(lightLevel, now / 1000);
-  communityFlame.rotation.y += deltaSeconds * 1.5;
-  communityFlame.scale.y = 2.2 + Math.sin(now / 120) * 0.25;
-  memorySequence.update(deltaSeconds);
-  celebration.update(deltaSeconds);
-  ambientAudio.update(deltaSeconds);
-  const behindDistance = 8.5;
-  const shoulderOffset = 2.2;
-  cameraDesiredPosition.set(
-    player.position.x - Math.sin(player.rotation.y) * behindDistance + Math.cos(player.rotation.y) * shoulderOffset,
-    6.2,
-    player.position.z + Math.cos(player.rotation.y) * behindDistance + Math.sin(player.rotation.y) * shoulderOffset,
-  );
-  const cameraSmoothing = 1 - Math.exp(-5.5 * deltaSeconds);
-  camera.position.lerp(cameraDesiredPosition, cameraSmoothing);
-  cameraLookTarget.set(player.position.x, 1.05, player.position.z);
+  npcActivity.update(deltaSeconds, lightLevel);
+  atmosphereVfx.update(deltaSeconds, lightLevel);
+  environmentStory.update(deltaSeconds, lightLevel);
+  neighbourhoodProps.update(deltaSeconds, lightLevel);
+  cameraDesiredPosition.set(player.position.x, player.position.y + 5.2, player.position.z + 7.5);
+  camera.position.lerp(cameraDesiredPosition, 1 - Math.exp(-deltaSeconds * 7));
+  cameraLookTarget.set(player.position.x, player.position.y + 1, player.position.z - 2.2);
   camera.lookAt(cameraLookTarget);
+  diya.rotation.y += deltaSeconds * 0.35;
+  flame.scale.y = 1.55 + Math.sin(now * 0.006) * 0.25;
+  communityFlame.scale.y = 1.9 + Math.sin(now * 0.004) * 0.25;
+  memoryMarker.rotation.y += deltaSeconds * 0.6;
   renderer.render(scene, camera);
+  requestAnimationFrame(update);
 }
-
-addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(devicePixelRatio, lowQualityMode ? 1 : 2));
+  renderer.setSize(innerWidth, innerHeight);
+});
 connect();
-renderer.setAnimationLoop(update);
-window.addEventListener('beforeunload', () => { touchControls.dispose(); memorySequence.dispose(); celebration.dispose(); environmentStory.dispose(); atmosphereVfx.dispose(); neighbourhoodProps.dispose(); npcCharacters.forEach((character) => character.dispose()); playerCharacter.dispose(); clearRemotePlayers(); ambientAudio.dispose(); });
+requestAnimationFrame(update);
