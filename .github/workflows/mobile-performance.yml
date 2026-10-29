@@ -1,0 +1,55 @@
+name: Mobile Performance Guardrails
+
+on:
+  push:
+    paths:
+      - 'apps/game/src/**'
+      - 'apps/game/public/**'
+      - '.github/workflows/mobile-performance.yml'
+  pull_request:
+    paths:
+      - 'apps/game/src/**'
+      - 'apps/game/public/**'
+      - '.github/workflows/mobile-performance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck and build
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Browser mobile regression suite
+        run: npm run test:browser:mobile
+      - name: Browser performance suite
+        run: npm run test:browser:perf
+      - name: Verify mobile production guardrails
+        shell: python
+        run: |
+          from pathlib import Path
+          main = Path('apps/game/src/main.ts').read_text()
+          index = Path('apps/game/index.html').read_text()
+          manifest = Path('apps/game/public/manifest.webmanifest').read_text()
+          required = [
+              "navigator.maxTouchPoints",
+              "pointer: coarse",
+              "applyGraphicsQuality(lowQualityMode)",
+              "renderer.setPixelRatio",
+              "viewport-fit=cover",
+          ]
+          for marker in required:
+              source = main if marker != "viewport-fit=cover" else index
+              if marker not in source:
+                  raise SystemExit(f'mobile guardrail missing: {marker}')
+          if 'orientation' not in manifest or 'landscape' not in manifest:
+              raise SystemExit('PWA landscape orientation guardrail missing')
