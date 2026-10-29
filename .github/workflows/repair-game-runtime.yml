@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Repair game runtime
+      - name: Repair only missing runtime pieces
         shell: bash
         run: |
           python3 <<'PY'
@@ -34,167 +34,37 @@ jobs:
           main = Path('apps/game/src/main.ts')
           text = main.read_text()
 
+          if 'const keys = new Set<string>();' not in text:
+              marker = 'let reconnectAttempt = 0;\n'
+              if marker not in text:
+                  raise SystemExit('Cannot locate reconnect state marker')
+              text = text.replace(marker, marker + 'const keys = new Set<string>();\n', 1)
+
+          if 'let lastNetworkSend = 0;' not in text:
+              marker = 'let socket: WebSocket | null = null;\n'
+              if marker not in text:
+                  raise SystemExit('Cannot locate socket marker')
+              text = text.replace(marker, marker + 'let lastNetworkSend = 0;\n', 1)
+
           text = text.replace(
-              "let reconnectTimer: number | undefined;\nlet reconnectAttempt = 0;",
-              "let lastNetworkSend = 0;\nlet reconnectTimer: number | undefined;\nlet reconnectAttempt = 0;\nconst keys = new Set<string>();",
+              'let sessionToken = localStorage.getItem(SESSION_STORAGE_KEY);',
+              'let sessionToken: string | undefined = localStorage.getItem(SESSION_STORAGE_KEY) ?? undefined;',
               1,
           )
-          text = text.replace(
-              "let sessionToken = localStorage.getItem(SESSION_STORAGE_KEY);",
-              "let sessionToken: string | undefined = localStorage.getItem(SESSION_STORAGE_KEY) ?? undefined;",
-              1,
-          )
-
-          marker = "// Keep the existing deterministic E2E bridge below this point in the source tree."
-          if marker in text:
-              text = text.split(marker)[0].rstrip() + "\n"
-
-          runtime_tail = r'''
-
-          // Deterministic browser E2E bridge. It is development-only and requires ?e2e=1.
-          if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e') === '1') {
-            const testWindow = window as Window & {
-              __LAST_DIYA_E2E__?: {
-                moveTo: (x: number, z: number) => Promise<void>;
-                interact: () => void;
-                setShadowMapEnabled: (enabled: boolean) => void;
-                setGraphicsQuality: (quality: 'low' | 'high') => void;
-                getState: () => unknown;
-              };
-            };
-            testWindow.__LAST_DIYA_E2E__ = {
-              setShadowMapEnabled(enabled) { renderer.shadowMap.enabled = enabled; },
-              setGraphicsQuality(quality) { applyGraphicsQuality(quality === 'low'); },
-              async moveTo(x, z) {
-                if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error('Test position must be finite');
-                const startX = player.position.x;
-                const startZ = player.position.z;
-                const targetX = THREE.MathUtils.clamp(x, -3.2, 3.2);
-                const targetZ = THREE.MathUtils.clamp(z, darkDistrictUnlocked ? -27 : -19, 19);
-                const distance = Math.hypot(targetX - startX, targetZ - startZ);
-                const steps = Math.max(1, Math.ceil(distance / 0.35));
-                for (let index = 1; index <= steps; index += 1) {
-                  const previous = player.position.clone();
-                  const nextX = startX + (targetX - startX) * index / steps;
-                  const nextZ = startZ + (targetZ - startZ) * index / steps;
-                  const direction = new THREE.Vector3(nextX - previous.x, 0, nextZ - previous.z);
-                  const stepDistance = direction.length();
-                  if (stepDistance > 0) movePlayerWithCollision(player.position, direction.normalize(), stepDistance, darkDistrictUnlocked);
-                  player.rotation.y = Math.atan2(player.position.x - previous.x, player.position.z - previous.z);
-                  send({ type: 'player_state', transform: playerTransform() });
-                  await new Promise<void>((resolve) => window.setTimeout(resolve, 130));
-                }
-              },
-              interact,
-              getState() {
-                return {
-                  playerId: currentPlayerId,
-                  position: playerTransform(),
-                  lightLevel,
-                  quests: quests.map((quest) => ({ ...quest })),
-                  inventory: inventory.map((item) => ({ ...item })),
-                  remotePlayerCount: remotePlayers.size,
-                  remotePlayers: [...remotePlayers.entries()].map(([id, remote]) => ({
-                    id,
-                    position: { x: remote.mesh.position.x, y: remote.mesh.position.y, z: remote.mesh.position.z },
-                    target: { x: remote.target.x, y: remote.target.y, z: remote.target.z },
-                  })),
-                  promptText: prompt.textContent ?? '',
-                  memoryOpen: memorySequence.isOpen(),
-                  finalEventActive,
-                  remoteAvatarLodEnabled,
-                  touchControlsVisible: Boolean(document.querySelector('.touch-controls')),
-                  graphicsQuality: lowQualityMode ? 'low' : 'high',
-                  rendererInfo: {
-                    calls: renderer.info.render.calls,
-                    triangles: renderer.info.render.triangles,
-                    geometries: renderer.info.memory.geometries,
-                    textures: renderer.info.memory.textures,
-                    pixelRatio: renderer.getPixelRatio(),
-                    shadowsEnabled: renderer.shadowMap.enabled,
-                  },
-                };
-              },
-            };
-          }
-
-          const moveDirection = new THREE.Vector3();
-          const cameraDesiredPosition = new THREE.Vector3();
-          const cameraLookTarget = new THREE.Vector3();
-          let previousTime = performance.now();
-
-          function update(now: number) {
-            const deltaSeconds = Math.min((now - previousTime) / 1000, 0.05);
-            previousTime = now;
-            const inputX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));
-            const inputZ = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
-            moveDirection.set(inputX, 0, inputZ);
-            if (moveDirection.lengthSq() > 0) {
-              moveDirection.normalize();
-              movePlayerWithCollision(player.position, moveDirection, deltaSeconds * 3.2, darkDistrictUnlocked);
-              player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
-              if (now - lastNetworkSend > 80) {
-                lastNetworkSend = now;
-                send({ type: 'player_state', transform: playerTransform() });
-              }
-            }
-            playerCharacter.update(lightLevel, now / 1000, deltaSeconds, moveDirection.lengthSq() > 0);
-            for (const remote of remotePlayers.values()) {
-              remote.mesh.position.lerp(remote.target, Math.min(1, deltaSeconds * 10));
-              remote.mesh.rotation.y = THREE.MathUtils.lerp(remote.mesh.rotation.y, remote.rotation, Math.min(1, deltaSeconds * 10));
-              remote.visual.update(lightLevel, now / 1000, deltaSeconds, remote.mesh.position.distanceTo(remote.target) > 0.02);
-            }
-            npcActivity.update(lightLevel, now / 1000, deltaSeconds);
-            atmosphereVfx.update(lightLevel, deltaSeconds, now / 1000);
-            environmentStory.update(lightLevel, now / 1000);
-            neighbourhoodProps.update(lightLevel, now / 1000);
-            celebration.update(deltaSeconds);
-            cameraDesiredPosition.set(player.position.x, player.position.y + 5.2, player.position.z + 7.5);
-            camera.position.lerp(cameraDesiredPosition, 1 - Math.exp(-deltaSeconds * 7));
-            cameraLookTarget.set(player.position.x, player.position.y + 1, player.position.z - 2.2);
-            camera.lookAt(cameraLookTarget);
-            diya.rotation.y += deltaSeconds * 0.35;
-            flame.scale.y = 1.55 + Math.sin(now * 0.006) * 0.25;
-            communityFlame.scale.y = 1.9 + Math.sin(now * 0.004) * 0.25;
-            memoryMarker.rotation.y += deltaSeconds * 0.6;
-            renderer.render(scene, camera);
-            requestAnimationFrame(update);
-          }
-
-          addEventListener('keydown', (event) => {
-            const key = event.key.toLowerCase();
-            if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) keys.add(key);
-          });
-          addEventListener('keyup', (event) => {
-            keys.delete(event.key.toLowerCase());
-          });
-          addEventListener('blur', () => keys.clear());
-
-          addEventListener('resize', () => {
-            camera.aspect = innerWidth / innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setPixelRatio(Math.min(devicePixelRatio, lowQualityMode ? 1 : 2));
-            renderer.setSize(innerWidth, innerHeight);
-          });
-
-          connect();
-          requestAnimationFrame(update);
-          '''
-          text += runtime_tail
           main.write_text(text)
 
           celebration = Path('apps/game/src/world/celebration.ts')
           c = celebration.read_text()
-          c = c.replace(
-              "  trigger(): void;\n  dispose(): void;",
-              "  trigger(): void;\n  setVisible(visible: boolean): void;\n  dispose(): void;",
-              1,
-          )
-          c = c.replace(
-              "    trigger() {\n      active = true;",
-              "    setVisible(visible) {\n      group.visible = visible;\n      if (!visible) { active = false; return; }\n      if (!active) { active = true; elapsed = 0; }\n    },\n    trigger() {\n      active = true;",
-              1,
-          )
+          if 'setVisible(visible: boolean): void;' not in c:
+              marker = '  trigger(): void;\n'
+              if marker not in c:
+                  raise SystemExit('Cannot locate celebration interface marker')
+              c = c.replace(marker, marker + '  setVisible(visible: boolean): void;\n', 1)
+          if '    setVisible(visible) {' not in c:
+              marker = '    trigger() {\n'
+              if marker not in c:
+                  raise SystemExit('Cannot locate celebration trigger marker')
+              c = c.replace(marker, '    setVisible(visible) {\n      group.visible = visible;\n      if (!visible) { active = false; return; }\n      if (!active) { active = true; elapsed = 0; }\n    },\n' + marker, 1)
           celebration.write_text(c)
           PY
 
@@ -216,5 +86,5 @@ jobs:
             echo "No repair changes required."
             exit 0
           fi
-          git commit -m "fix(game): restore runtime loop and repair typecheck regressions"
+          git commit -m "fix(game): restore missing runtime pieces"
           git push
