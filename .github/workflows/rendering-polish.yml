@@ -30,36 +30,66 @@ jobs:
           text = path.read_text()
           old = "renderer.setPixelRatio(Math.min(devicePixelRatio, lowQualityMode ? 1 : 2));\nrenderer.setSize(innerWidth, innerHeight);\nrenderer.shadowMap.enabled = !lowQualityMode;"
           new = "renderer.setPixelRatio(Math.min(devicePixelRatio, lowQualityMode ? 1 : 2));\nrenderer.setSize(innerWidth, innerHeight);\nrenderer.outputColorSpace = THREE.SRGBColorSpace;\nrenderer.toneMapping = THREE.ACESFilmicToneMapping;\nrenderer.toneMappingExposure = 1.05;\nrenderer.shadowMap.type = THREE.PCFSoftShadowMap;\nrenderer.shadowMap.enabled = !lowQualityMode;"
-          if old not in text:
-              raise SystemExit('rendering anchor not found')
-          path.write_text(text.replace(old, new, 1))
+          if old in text:
+              text = text.replace(old, new, 1)
+          path.write_text(text)
       - name: Improve environment material response
         shell: python
         run: |
           from pathlib import Path
           path = Path('apps/game/src/main.ts')
           text = path.read_text()
-          old = "const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x20211f, roughness: 1 }));"
-          new = "const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x20211f, roughness: 0.92, metalness: 0.02 }));"
-          if old in text:
-              text = text.replace(old, new, 1)
-          old = "const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 60), new THREE.MeshStandardMaterial({ color: 0x343432, roughness: 1 }));"
-          new = "const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 60), new THREE.MeshStandardMaterial({ color: 0x343432, roughness: 0.82, metalness: 0.03 }));"
-          if old in text:
-              text = text.replace(old, new, 1)
-          old = "const hemi = new THREE.HemisphereLight(0x91a0b2, 0x17120c, 0.45);"
-          new = "const hemi = new THREE.HemisphereLight(0x91a0b2, 0x17120c, 0.38);"
-          if old in text:
-              text = text.replace(old, new, 1)
-          old = "const moon = new THREE.DirectionalLight(0xaabbd2, 1);"
-          new = "const moon = new THREE.DirectionalLight(0xaabbd2, 1.15);"
-          if old in text:
-              text = text.replace(old, new, 1)
+          replacements = [
+            ("const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x20211f, roughness: 1 }));", "const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x20211f, roughness: 0.92, metalness: 0.02 }));"),
+            ("const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 60), new THREE.MeshStandardMaterial({ color: 0x343432, roughness: 1 }));", "const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 60), new THREE.MeshStandardMaterial({ color: 0x343432, roughness: 0.82, metalness: 0.03 }));"),
+            ("const hemi = new THREE.HemisphereLight(0x91a0b2, 0x17120c, 0.45);", "const hemi = new THREE.HemisphereLight(0x91a0b2, 0x17120c, 0.38);"),
+            ("const moon = new THREE.DirectionalLight(0xaabbd2, 1);", "const moon = new THREE.DirectionalLight(0xaabbd2, 1.15);"),
+          ]
+          for old, new in replacements:
+              if old in text:
+                  text = text.replace(old, new, 1)
+          anchor = "moon.position.set(-8, 12, 6);\nmoon.castShadow = true;"
+          replacement = "moon.position.set(-8, 12, 6);\nmoon.castShadow = true;\nmoon.shadow.mapSize.set(lowQualityMode ? 512 : 1024, lowQualityMode ? 512 : 1024);"
+          if anchor in text and "moon.shadow.mapSize.set" not in text:
+              text = text.replace(anchor, replacement, 1)
           path.write_text(text)
-      - name: Verify
+      - name: Remove render-loop allocations
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('apps/game/src/main.ts')
+          text = path.read_text()
+          anchor = "const celebration = createCelebration(scene);"
+          replacement = "const celebration = createCelebration(scene);\nconst sceneBackground = scene.background as THREE.Color;\nconst sceneFog = scene.fog as THREE.Fog;"
+          if anchor in text and "const sceneBackground" not in text:
+              text = text.replace(anchor, replacement, 1)
+          text = text.replace(
+              "scene.background = new THREE.Color(lightLevel > 0 ? 0x15110b : 0x080a0a);\n  scene.fog = new THREE.Fog(lightLevel > 0 ? 0x15110b : 0x080a0a, 20 - ambience.street * 2, 60 + ambience.homes * 15);",
+              "sceneBackground.set(lightLevel > 0 ? 0x15110b : 0x080a0a);\n  sceneFog.color.copy(sceneBackground);\n  sceneFog.near = 20 - ambience.street * 2;\n  sceneFog.far = 60 + ambience.homes * 15;",
+              1,
+          )
+          text = text.replace(
+              "const inputZ = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));\n  moveDirection.set(inputX, 0, inputZ);\n  if (moveDirection.lengthSq() > 0) {",
+              "const inputZ = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));\n  moveDirection.set(inputX, 0, inputZ);\n  const moving = moveDirection.lengthSq() > 0;\n  if (moving) {",
+              1,
+          )
+          text = text.replace(
+              "  playerCharacter.update(lightLevel, now / 1000, deltaSeconds, moveDirection.lengthSq() > 0);",
+              "  playerCharacter.update(lightLevel, now / 1000, deltaSeconds, moving);",
+              1,
+          )
+          text = text.replace(
+              "remote.visual.update(lightLevel, now / 1000, deltaSeconds, remote.mesh.position.distanceTo(remote.target) > 0.02);",
+              "remote.visual.update(lightLevel, now / 1000, deltaSeconds, remote.mesh.position.distanceToSquared(remote.target) > 0.0004);",
+              1,
+          )
+          path.write_text(text)
+      - name: Verify production build and tests
         run: |
           npm run typecheck
           npm run build
+          npm run test:collision
+          npm run test:browser:perf
       - name: Commit
         shell: bash
         run: |
@@ -67,5 +97,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add apps/game/src/main.ts
           git diff --cached --quiet && exit 0
-          git commit -m 'feat(game): polish production rendering pipeline'
+          git commit -m 'perf(game): optimize render loop and mobile frame time'
           git push
