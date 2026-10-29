@@ -44,3 +44,51 @@ jobs:
         run: npm run test:collision
       - name: Vertical slice regression
         run: npm run test:vertical-slice
+      - name: Start server
+        shell: bash
+        run: |
+          PORT=8787 node apps/server/dist/index.js > /tmp/the-last-diya-server.log 2>&1 &
+          echo $! > /tmp/the-last-diya-server.pid
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/health > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/the-last-diya-server.log
+          exit 1
+      - name: Start game client
+        shell: bash
+        run: |
+          npm run preview --workspace=@the-last-diya/game -- --host 127.0.0.1 --port 5174 > /tmp/the-last-diya-client.log 2>&1 &
+          echo $! > /tmp/the-last-diya-client.pid
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:5174/?e2e=1 > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/the-last-diya-client.log
+          exit 1
+      - name: Browser multiplayer journey
+        env:
+          GAME_URL: http://127.0.0.1:5174/?e2e=1
+          GAME_SERVER_URL: ws://127.0.0.1:8787
+          BROWSER_TIMEOUT_MS: 30000
+          BROWSER_STARTUP_TIMEOUT_MS: 60000
+        run: npm run test:browser:multiplayer
+      - name: Upload browser diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-experience-browser-logs
+          path: |
+            /tmp/the-last-diya-server.log
+            /tmp/the-last-diya-client.log
+          if-no-files-found: ignore
+      - name: Stop local services
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/the-last-diya-client.pid ]; then kill "$(cat /tmp/the-last-diya-client.pid)" || true; fi
+          if [ -f /tmp/the-last-diya-server.pid ]; then kill "$(cat /tmp/the-last-diya-server.pid)" || true; fi
