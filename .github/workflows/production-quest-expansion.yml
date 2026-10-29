@@ -48,6 +48,25 @@ jobs:
               "  'unknown-stranger': { threshold: 85, text: 'The last district is opening. Some memories return only when the light is shared.' },",
               "  'unknown-stranger': { threshold: 85, text: 'The last district is opening. Some memories return only when the light is shared.' },\n  'share-the-light': { threshold: 100, text: 'The street is bright again. Do not let the flame stop with you. Share it.' },")
 
+          replace('apps/game/src/main.ts',
+              "  npcActivity.update(deltaSeconds, lightLevel);",
+              "  npcActivity.update(lightLevel, now / 1000, deltaSeconds);")
+          replace('apps/game/src/main.ts',
+              "  environmentStory.update(deltaSeconds, lightLevel);",
+              "  environmentStory.update(lightLevel, now / 1000);")
+          replace('apps/game/src/main.ts',
+              "  neighbourhoodProps.update(deltaSeconds, lightLevel);",
+              "  neighbourhoodProps.update(lightLevel, now / 1000);")
+          replace('apps/game/src/main.ts',
+              "  playerCharacter.update(deltaSeconds, moveDirection.lengthSq() > 0);",
+              "  playerCharacter.update(lightLevel, now / 1000, deltaSeconds, moveDirection.lengthSq() > 0);")
+          replace('apps/game/src/main.ts',
+              "    remote.visual.update(deltaSeconds, remote.mesh.position.distanceTo(remote.target) > 0.02);",
+              "    remote.visual.update(lightLevel, now / 1000, deltaSeconds, remote.mesh.position.distanceTo(remote.target) > 0.02);")
+          replace('apps/game/src/main.ts',
+              "  atmosphereVfx.update(deltaSeconds, lightLevel);",
+              "  atmosphereVfx.update(lightLevel, deltaSeconds, now / 1000);")
+
           replace('docs/ROADMAP.md',
               "- [ ] Extended quest content beyond the five-quest vertical slice",
               "- [x] First post-finale cooperative epilogue quest: Share the Light\n- [ ] Extended quest content beyond the six-quest story arc")
