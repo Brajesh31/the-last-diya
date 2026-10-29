@@ -36,13 +36,35 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Start regression server
+        env:
+          PORT: 8787
+          NODE_ENV: test
+          WS_ALLOWED_ORIGINS: https://game.example.test
+        run: |
+          node apps/server/dist/index.js > /tmp/the-last-diya-server.log 2>&1 &
+          echo $! > /tmp/the-last-diya-server.pid
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8787/health > /tmp/regression-health.json; then
+              cat /tmp/regression-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/the-last-diya-server.log
+          exit 1
+
       - name: Protocol compatibility regression
         run: npm run test:protocol
 
       - name: Server security regression tests
+        env:
+          WS_ALLOWED_ORIGINS: https://game.example.test
         run: npm run test:server-security
 
       - name: Server hardening tests
+        env:
+          WS_ALLOWED_ORIGINS: https://game.example.test
         run: npm run test:server-hardening
 
       - name: Multiplayer regression tests
@@ -50,6 +72,12 @@ jobs:
 
       - name: Mobile browser regression tests
         run: npm run test:browser:mobile
+
+      - name: Stop regression server
+        if: always()
+        run: |
+          if [ -f /tmp/the-last-diya-server.pid ]; then kill "$(cat /tmp/the-last-diya-server.pid)" || true; fi
+          cat /tmp/the-last-diya-server.log || true
 
   docker:
     name: Build and smoke-test production image
