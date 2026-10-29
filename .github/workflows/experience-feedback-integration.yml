@@ -1,0 +1,110 @@
+name: Experience Feedback Integration
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: experience-feedback-integration
+  cancel-in-progress: true
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Integrate contextual feedback and accessibility
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('apps/game/src/main.ts')
+          text = p.read_text()
+
+          def once(old, new, label):
+              global text
+              if new in text:
+                  return
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 marker, found {count}')
+              text = text.replace(old, new, 1)
+
+          once(
+              "import { installTouchControls } from './world/touch-controls';\n",
+              "import { installTouchControls } from './world/touch-controls';\nimport { createFeedbackMessage, feedbackClassName } from './world/experience-feedback';\n",
+              'feedback import',
+          )
+          once(
+              "function setLatency(latencyMs: number | null) {\n",
+              "function showFeedback(text: string, tone: 'info' | 'success' | 'warning' = 'info') {\n  const message = createFeedbackMessage(text, tone);\n  const existing = document.querySelector('.experience-feedback');\n  existing?.remove();\n  const element = document.createElement('div');\n  element.className = feedbackClassName(message.tone);\n  element.setAttribute('role', 'status');\n  element.textContent = message.text;\n  document.body.appendChild(element);\n  window.setTimeout(() => element.remove(), message.durationMs);\n}\n\nfunction setLatency(latencyMs: number | null) {\n",
+              'feedback helper',
+          )
+          once(
+              ".network-latency{font-size:10px;color:#8f938b;letter-spacing:.06em;font-variant-numeric:tabular-nums}",
+              ".network-latency{font-size:10px;color:#8f938b;letter-spacing:.06em;font-variant-numeric:tabular-nums}.experience-feedback{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:20;padding:10px 14px;border:1px solid #45463f;border-radius:9px;background:#0c0d0de8;color:#f4f0e8;font-size:12px;letter-spacing:.02em;box-shadow:0 10px 30px #0006;backdrop-filter:blur(12px);pointer-events:none}.experience-feedback-success{border-color:#80662e}.experience-feedback-warning{border-color:#795044}@media(prefers-reduced-motion:reduce){.experience-feedback{transform:translateX(-50%)!important}}",
+              'feedback css',
+          )
+          once(
+              "  if (message.type === 'interaction_result' && message.success) {",
+              "  if (message.type === 'interaction_result' && message.success) {\n    showFeedback('Light added to the street.', 'success');",
+              'interaction feedback',
+          )
+          once(
+              "  if (message.type === 'flame_shared') {",
+              "  if (message.type === 'flame_shared') {\n    showFeedback('The flame was shared.', 'success');",
+              'flame feedback',
+          )
+          once(
+              "  if (message.type === 'pickup_result' && message.success) {",
+              "  if (message.type === 'pickup_result' && message.success) {\n    showFeedback(`Collected ${message.quantity} ${message.itemId}.`, 'success');",
+              'pickup feedback',
+          )
+          once(
+              "  if (message.type === 'final_event_started') {",
+              "  if (message.type === 'final_event_started') {\n    showFeedback('The neighbourhood is ready. Gather at the community diya.', 'success');",
+              'final event feedback',
+          )
+          once(
+              "  if (message.type === 'error') {",
+              "  if (message.type === 'error') {\n    showFeedback(message.message || 'Something went wrong. Try again.', 'warning');",
+              'error feedback',
+          )
+          p.write_text(text)
+          PY
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Verify
+        run: |
+          npm run test:experience-feedback
+          npm run test:protocol
+          npm run test:network-experience
+          npm run typecheck
+          npm run build
+
+      - name: Commit integration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/game/src/main.ts
+          if git diff --cached --quiet; then
+            echo "Experience feedback already integrated."
+            exit 0
+          fi
+          git commit -m "feat(game): add contextual interaction feedback"
+          git push
