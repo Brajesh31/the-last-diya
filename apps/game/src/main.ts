@@ -17,6 +17,7 @@ import { createNeighbourhoodProps } from './world/neighbourhood-props';
 import { movePlayerWithCollision } from './world/player-collision';
 import { applyPong, createNetworkExperienceState, interpolateRemoteTransform, shouldSendPing } from './world/network-experience';
 import { installTouchControls } from './world/touch-controls';
+import { createFeedbackMessage, feedbackClassName } from './world/experience-feedback';
 import { GAME_CLIENT_VERSION, GAME_SERVER_URL, SESSION_STORAGE_KEY } from './production-config';
 
 const root = document.getElementById('game')!;
@@ -189,7 +190,7 @@ hud.innerHTML = `<div class="hud">
 </div>`;
 document.body.appendChild(hud);
 const style = document.createElement('style');
-style.textContent = `body{margin:0;overflow:hidden;background:#080a0a;font-family:system-ui;color:#f4f0e8}.hud{position:fixed;top:22px;left:22px;display:grid;gap:10px;padding:15px 16px;background:#0c0d0de8;border:1px solid #34352f;border-radius:12px;width:min(260px,calc(100vw - 60px));box-sizing:border-box;backdrop-filter:blur(12px)}.hud-heading,.light-readout{display:flex;align-items:center;justify-content:space-between;gap:12px}.hud-heading strong{font-size:12px;letter-spacing:.12em}.hud .connection-state{font-size:10px;color:#b2b5aa;letter-spacing:.08em}.network-latency{font-size:10px;color:#8f938b;letter-spacing:.06em;font-variant-numeric:tabular-nums}.light-readout{align-items:flex-start;flex-direction:column;gap:3px}.light-readout #light{font-size:19px;font-weight:700;color:#f1b85b;font-variant-numeric:tabular-nums}.light-readout #light-stage{font-size:10px;letter-spacing:.09em;color:#b8b3a6}.light-track{height:5px;overflow:hidden;background:#292a26;border-radius:99px}.light-track span{display:block;width:0;height:100%;background:#e8b45b;border-radius:99px;transition:width .35s ease}.hud small{color:#9c9e99;font-size:11px}.prompt{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);padding:12px 16px;background:#0c0d0de8;border:1px solid #30312e;border-radius:8px;max-width:calc(100vw - 36px);box-sizing:border-box;text-align:center;backdrop-filter:blur(12px)}@media(max-width:640px){.hud{top:10px;left:10px;width:min(235px,calc(100vw - 20px));padding:12px}.inventory-panel{right:10px!important;top:10px!important;min-width:unset!important;max-width:128px}.quest-panel{top:auto!important;bottom:86px;left:10px!important;min-width:unset!important;width:min(235px,calc(100vw - 20px));box-sizing:border-box}.dialogue-panel{bottom:14px!important}.prompt{bottom:66px;font-size:12px;padding:9px 12px;max-width:calc(100vw - 20px)}}`;
+style.textContent = `body{margin:0;overflow:hidden;background:#080a0a;font-family:system-ui;color:#f4f0e8}.hud{position:fixed;top:22px;left:22px;display:grid;gap:10px;padding:15px 16px;background:#0c0d0de8;border:1px solid #34352f;border-radius:12px;width:min(260px,calc(100vw - 60px));box-sizing:border-box;backdrop-filter:blur(12px)}.hud-heading,.light-readout{display:flex;align-items:center;justify-content:space-between;gap:12px}.hud-heading strong{font-size:12px;letter-spacing:.12em}.hud .connection-state{font-size:10px;color:#b2b5aa;letter-spacing:.08em}.network-latency{font-size:10px;color:#8f938b;letter-spacing:.06em;font-variant-numeric:tabular-nums}.experience-feedback{position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:20;padding:10px 14px;border:1px solid #45463f;border-radius:9px;background:#0c0d0de8;color:#f4f0e8;font-size:12px;letter-spacing:.02em;box-shadow:0 10px 30px #0006;backdrop-filter:blur(12px);pointer-events:none}.experience-feedback-success{border-color:#80662e}.experience-feedback-warning{border-color:#795044}@media(prefers-reduced-motion:reduce){.experience-feedback{transition:none!important}}.light-readout{align-items:flex-start;flex-direction:column;gap:3px}.light-readout #light{font-size:19px;font-weight:700;color:#f1b85b;font-variant-numeric:tabular-nums}.light-readout #light-stage{font-size:10px;letter-spacing:.09em;color:#b8b3a6}.light-track{height:5px;overflow:hidden;background:#292a26;border-radius:99px}.light-track span{display:block;width:0;height:100%;background:#e8b45b;border-radius:99px;transition:width .35s ease}.hud small{color:#9c9e99;font-size:11px}.prompt{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);padding:12px 16px;background:#0c0d0de8;border:1px solid #30312e;border-radius:8px;max-width:calc(100vw - 36px);box-sizing:border-box;text-align:center;backdrop-filter:blur(12px)}@media(max-width:640px){.hud{top:10px;left:10px;width:min(235px,calc(100vw - 20px));padding:12px}.inventory-panel{right:10px!important;top:10px!important;min-width:unset!important;max-width:128px}.quest-panel{top:auto!important;bottom:86px;left:10px!important;min-width:unset!important;width:min(235px,calc(100vw - 20px));box-sizing:border-box}.dialogue-panel{bottom:14px!important}.prompt{bottom:66px;font-size:12px;padding:9px 12px;max-width:calc(100vw - 20px)}}`;
 document.head.appendChild(style);
 
 if (touchDevice) {
@@ -230,6 +231,17 @@ let darkDistrictUnlocked = false;
 let finalEventActive = false;
 const networkExperience = createNetworkExperienceState();
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function showFeedback(text: string, tone: 'info' | 'success' | 'warning' = 'info') {
+  const message = createFeedbackMessage(text, tone);
+  document.querySelector('.experience-feedback')?.remove();
+  const element = document.createElement('div');
+  element.className = feedbackClassName(message.tone);
+  element.setAttribute('role', 'status');
+  element.textContent = message.text;
+  document.body.appendChild(element);
+  window.setTimeout(() => element.remove(), message.durationMs);
+}
+
 function setLatency(latencyMs: number | null) {
   const latency = document.getElementById('latency');
   if (!latency) return;
@@ -301,6 +313,7 @@ function handleServerMessage(message: ServerMessage) {
   if (message.type === 'light_update') { setLightLevel(message.level); return; }
   if (message.type === 'target_state') { if (message.targetId === 'diya-main-street-01') setMainDiyaLit(message.active); return; }
   if (message.type === 'interaction_result' && message.success) {
+    showFeedback('Light added to the street.', 'success');
     if (message.targetId === 'diya-main-street-01') { setMainDiyaLit(true); prompt.textContent = 'Diya lit · Shared Light Level +10%'; }
     if (message.targetId === 'community-diya-01') prompt.textContent = 'The last diya is lit. The neighbourhood remembers.';
     setLightLevel(message.lightLevel);
@@ -308,12 +321,15 @@ function handleServerMessage(message: ServerMessage) {
   }
   if (message.type === 'inventory_update') { inventory = message.items; ui.setInventory(inventory); return; }
   if (message.type === 'quest_update') { quests = message.quests; ui.setQuests(quests); return; }
-  if (message.type === 'pickup_result' && message.success) { const pickup = pickups.get(message.targetId); if (pickup) { pickup.collected = true; pickup.mesh.visible = false; } prompt.textContent = `Collected ${message.quantity} ${message.itemId.replace('_', ' ')}`; return; }
-  if (message.type === 'flame_shared') { setLightLevel(message.lightLevel); prompt.textContent = message.fromPlayerId === currentPlayerId ? 'You shared your flame · +5% Light' : 'A nearby player shared their flame · +5% Light'; return; }
+  if (message.type === 'pickup_result' && message.success) {
+    showFeedback(`Collected ${message.quantity} ${message.itemId}.`, 'success'); const pickup = pickups.get(message.targetId); if (pickup) { pickup.collected = true; pickup.mesh.visible = false; } prompt.textContent = `Collected ${message.quantity} ${message.itemId.replace('_', ' ')}`; return; }
+  if (message.type === 'flame_shared') {
+    showFeedback('The flame was shared.', 'success'); setLightLevel(message.lightLevel); prompt.textContent = message.fromPlayerId === currentPlayerId ? 'You shared your flame · +5% Light' : 'A nearby player shared their flame · +5% Light'; return; }
   if (message.type === 'world_state') { applyWorldState(message.lightLevel, message.unlockedDistricts); if (darkDistrictUnlocked) prompt.textContent = 'The Dark District is awake. The final path has opened.'; return; }
   if (message.type === 'memory_started') { memorySequence.open(); prompt.textContent = 'A forgotten memory has surfaced.'; return; }
   if (message.type === 'memory_completed') { memorySequence.close(); prompt.textContent = 'Memory restored. The path beyond the gate is waiting.'; return; }
-  if (message.type === 'final_event_started') { applyFinalEventState(true, false); prompt.textContent = 'The neighbourhood is alive again.'; return; }
+  if (message.type === 'final_event_started') {
+    showFeedback('The neighbourhood is ready. Gather at the community diya.', 'success'); applyFinalEventState(true, false); prompt.textContent = 'The neighbourhood is alive again.'; return; }
   if (message.type === 'final_event_state') { applyFinalEventState(message.event.active, message.event.completed); return; }
   if (message.type === 'error') prompt.textContent = message.message;
 }
