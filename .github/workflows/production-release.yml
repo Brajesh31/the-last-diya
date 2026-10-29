@@ -54,6 +54,12 @@ jobs:
           cat /tmp/the-last-diya-server.log
           exit 1
 
+      - name: Verify readiness endpoint
+        run: |
+          curl --fail --silent http://127.0.0.1:8787/ready > /tmp/regression-ready.json
+          cat /tmp/regression-ready.json
+          grep -q '"status":"ready"' /tmp/regression-ready.json
+
       - name: Protocol compatibility regression
         run: npm run test:protocol
 
@@ -112,6 +118,12 @@ jobs:
           echo 'Production container did not become healthy.'
           docker logs the-last-diya-smoke
           exit 1
+
+      - name: Verify readiness endpoint
+        run: |
+          curl --fail --silent http://127.0.0.1:8787/ready > /tmp/ready.json
+          cat /tmp/ready.json
+          grep -q '"status":"ready"' /tmp/ready.json
 
       - name: Verify container health metadata
         shell: bash
