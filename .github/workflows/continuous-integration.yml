@@ -36,6 +36,20 @@ jobs:
         run: npm run test:protocol
       - name: Collision regression
         run: npm run test:collision
+      - name: Start server for runtime regressions
+        shell: bash
+        run: |
+          node apps/server/dist/index.js > /tmp/the-last-diya-server.log 2>&1 &
+          echo $! > /tmp/the-last-diya-server.pid
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8787/health > /tmp/the-last-diya-health.json; then
+              cat /tmp/the-last-diya-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/the-last-diya-server.log
+          exit 1
       - name: Server security regression
         run: npm run test:server-security
       - name: Server hardening regression
@@ -46,3 +60,13 @@ jobs:
         run: npm run test:browser:mobile
       - name: Browser performance regression
         run: npm run test:browser:perf
+      - name: Stop regression server
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/the-last-diya-server.pid ]; then
+            kill "$(cat /tmp/the-last-diya-server.pid)" 2>/dev/null || true
+          fi
+          if [ -f /tmp/the-last-diya-server.log ]; then
+            tail -n 40 /tmp/the-last-diya-server.log || true
+          fi
