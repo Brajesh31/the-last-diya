@@ -1,0 +1,128 @@
+name: Production Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+concurrency:
+  group: production-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  validate:
+    name: Validate production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Server security regression tests
+        run: npm run test:server-security
+
+      - name: Server hardening tests
+        run: npm run test:server-hardening
+
+      - name: Multiplayer regression tests
+        run: npm run test:multiplayer
+
+      - name: Mobile browser regression tests
+        run: npm run test:browser:mobile
+
+  docker:
+    name: Build and smoke-test production image
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build production image
+        run: docker build --pull -t the-last-diya:${{ github.sha }} .
+
+      - name: Start production container
+        run: |
+          docker run -d --name the-last-diya-smoke \
+            -p 8787:8787 \
+            -e NODE_ENV=production \
+            -e PORT=8787 \
+            -e WS_ALLOWED_ORIGINS=https://smoke-test.invalid \
+            the-last-diya:${{ github.sha }}
+
+      - name: Wait for health endpoint
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8787/health > /tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'Production container did not become healthy.'
+          docker logs the-last-diya-smoke
+          exit 1
+
+      - name: Verify container health metadata
+        run: |
+          test "$(docker inspect -f '{{.State.Running}}' the-last-diya-smoke)" = "true"
+          grep -q '"status":"ok"' /tmp/health.json
+
+      - name: Stop smoke container
+        if: always()
+        run: docker rm -f the-last-diya-smoke || true
+
+  publish:
+    name: Publish release image to GHCR
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=tag
+            type=sha
+
+      - name: Build and push release image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
