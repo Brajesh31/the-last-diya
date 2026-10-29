@@ -15,14 +15,18 @@ export function createAmbientAudio(): AmbientAudio {
   let windGain: GainNode | null = null;
   let humGain: GainNode | null = null;
   let marketGain: GainNode | null = null;
+  let fireGain: GainNode | null = null;
+  let fireFilter: BiquadFilterNode | null = null;
   let started = false;
   let targetLevel = 0;
   let currentLevel = 0;
   let windSource: AudioBufferSourceNode | null = null;
   let windFilter: BiquadFilterNode | null = null;
+  let fireSource: AudioBufferSourceNode | null = null;
   let humOscillator: OscillatorNode | null = null;
   let marketOscillator: OscillatorNode | null = null;
   let bellTimer = 0;
+  let crackleTimer = 0;
   let noiseBuffer: AudioBuffer | null = null;
 
   function createNoiseBuffer(audioContext: AudioContext) {
@@ -60,6 +64,18 @@ export function createAmbientAudio(): AmbientAudio {
     windSource.connect(windFilter).connect(windGain).connect(master);
     windSource.start();
 
+    fireGain = context.createGain();
+    fireGain.gain.value = 0.0001;
+    fireFilter = context.createBiquadFilter();
+    fireFilter.type = 'bandpass';
+    fireFilter.frequency.value = 2100;
+    fireFilter.Q.value = 0.65;
+    fireSource = context.createBufferSource();
+    fireSource.buffer = noiseBuffer;
+    fireSource.loop = true;
+    fireSource.connect(fireFilter).connect(fireGain).connect(master);
+    fireSource.start();
+
     humGain = context.createGain();
     humGain.gain.value = 0.008;
     humOscillator = context.createOscillator();
@@ -89,7 +105,7 @@ export function createAmbientAudio(): AmbientAudio {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(620, context.currentTime);
+    oscillator.frequency.setValueAtTime(620 + Math.random() * 70, context.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(390, context.currentTime + 1.8);
     gain.gain.setValueAtTime(0.0001, context.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.025 + currentLevel / 10000, context.currentTime + 0.02);
@@ -99,8 +115,17 @@ export function createAmbientAudio(): AmbientAudio {
     oscillator.stop(context.currentTime + 1.9);
   }
 
+  function playCrackle() {
+    if (!context || !master || !fireGain || currentLevel < 50) return;
+    const now = context.currentTime;
+    const peak = 0.012 + Math.random() * 0.018;
+    fireGain.gain.cancelScheduledValues(now);
+    fireGain.gain.setValueAtTime(Math.max(0.0001, peak), now);
+    fireGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06 + Math.random() * 0.12);
+  }
+
   function update(deltaSeconds: number) {
-    if (!started || !context || !master || !windGain || !humGain || !marketGain || !windFilter) return;
+    if (!started || !context || !master || !windGain || !humGain || !marketGain || !windFilter || !fireGain || !fireFilter) return;
     currentLevel += (targetLevel - currentLevel) * Math.min(1, deltaSeconds * 2.5);
 
     const night = 1 - currentLevel / 100;
@@ -108,17 +133,26 @@ export function createAmbientAudio(): AmbientAudio {
     humGain.gain.setTargetAtTime(0.004 + currentLevel / 9000, context.currentTime, 0.5);
     marketGain.gain.setTargetAtTime(currentLevel >= 30 ? Math.min(0.018, (currentLevel - 30) / 3500) : 0.0001, context.currentTime, 0.5);
     windFilter.frequency.setTargetAtTime(450 + night * 550, context.currentTime, 0.5);
+    fireFilter.frequency.setTargetAtTime(1700 + currentLevel * 4, context.currentTime, 0.7);
+    if (currentLevel < 50) fireGain.gain.setTargetAtTime(0.0001, context.currentTime, 0.6);
 
     bellTimer -= deltaSeconds;
     if (bellTimer <= 0) {
       bellTimer = 12 + Math.random() * 12;
       playBell();
     }
+
+    crackleTimer -= deltaSeconds;
+    if (crackleTimer <= 0) {
+      crackleTimer = 0.18 + Math.random() * 0.9;
+      playCrackle();
+    }
   }
 
   function dispose() {
     if (!context) return;
     windSource?.stop();
+    fireSource?.stop();
     humOscillator?.stop();
     marketOscillator?.stop();
     void context.close();
