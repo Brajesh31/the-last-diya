@@ -19,6 +19,7 @@
     "test:collision": "node --import tsx scripts/player-collision-test.mjs",
     "test:browser:multiplayer": "node scripts/browser-multiplayer-test.mjs",
     "test:browser:reconnect": "node scripts/browser-reconnect-test.mjs",
+    "test:browser:persistence": "node scripts/browser-persistence-test.mjs",
     "test:server-hardening": "node scripts/server-hardening-test.mjs",
     "test:multiplayer:perf": "node scripts/multiplayer-performance-test.mjs",
     "test:browser:perf": "node scripts/browser-render-performance-test.mjs",
