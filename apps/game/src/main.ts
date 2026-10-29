@@ -15,6 +15,7 @@ import { createNPCCharacter } from './world/npc-character';
 import { createPlayerCharacter, type PlayerCharacterVisual } from './world/player-character';
 import { createNeighbourhoodProps } from './world/neighbourhood-props';
 import { movePlayerWithCollision } from './world/player-collision';
+import { applyPong, createNetworkExperienceState, interpolateRemoteTransform, shouldSendPing } from './world/network-experience';
 import { installTouchControls } from './world/touch-controls';
 import { GAME_CLIENT_VERSION, GAME_SERVER_URL, SESSION_STORAGE_KEY } from './production-config';
 
@@ -181,13 +182,14 @@ const celebration = createCelebration(scene);
 const hud = document.createElement('div');
 hud.innerHTML = `<div class="hud">
   <div class="hud-heading"><strong>THE LAST DIYA</strong><span id="connection" class="connection-state">CONNECTING</span></div>
+  <div id="latency" class="network-latency" aria-live="polite">LATENCY --</div>
   <div class="light-readout"><span id="light">LIGHT ${LIGHT_LEVEL_START}%</span><span id="light-stage">THE STREET IS QUIET</span></div>
   <div class="light-track" role="progressbar" aria-label="Shared Light Level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${LIGHT_LEVEL_START}"><span id="light-fill"></span></div>
   <small>WASD / Arrow keys · E · Interact</small>
 </div>`;
 document.body.appendChild(hud);
 const style = document.createElement('style');
-style.textContent = `body{margin:0;overflow:hidden;background:#080a0a;font-family:system-ui;color:#f4f0e8}.hud{position:fixed;top:22px;left:22px;display:grid;gap:10px;padding:15px 16px;background:#0c0d0de8;border:1px solid #34352f;border-radius:12px;width:min(260px,calc(100vw - 60px));box-sizing:border-box;backdrop-filter:blur(12px)}.hud-heading,.light-readout{display:flex;align-items:center;justify-content:space-between;gap:12px}.hud-heading strong{font-size:12px;letter-spacing:.12em}.hud .connection-state{font-size:10px;color:#b2b5aa;letter-spacing:.08em}.light-readout{align-items:flex-start;flex-direction:column;gap:3px}.light-readout #light{font-size:19px;font-weight:700;color:#f1b85b;font-variant-numeric:tabular-nums}.light-readout #light-stage{font-size:10px;letter-spacing:.09em;color:#b8b3a6}.light-track{height:5px;overflow:hidden;background:#292a26;border-radius:99px}.light-track span{display:block;width:0;height:100%;background:#e8b45b;border-radius:99px;transition:width .35s ease}.hud small{color:#9c9e99;font-size:11px}.prompt{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);padding:12px 16px;background:#0c0d0de8;border:1px solid #30312e;border-radius:8px;max-width:calc(100vw - 36px);box-sizing:border-box;text-align:center;backdrop-filter:blur(12px)}@media(max-width:640px){.hud{top:10px;left:10px;width:min(235px,calc(100vw - 20px));padding:12px}.inventory-panel{right:10px!important;top:10px!important;min-width:unset!important;max-width:128px}.quest-panel{top:auto!important;bottom:86px;left:10px!important;min-width:unset!important;width:min(235px,calc(100vw - 20px));box-sizing:border-box}.dialogue-panel{bottom:14px!important}.prompt{bottom:66px;font-size:12px;padding:9px 12px;max-width:calc(100vw - 20px)}}`;
+style.textContent = `body{margin:0;overflow:hidden;background:#080a0a;font-family:system-ui;color:#f4f0e8}.hud{position:fixed;top:22px;left:22px;display:grid;gap:10px;padding:15px 16px;background:#0c0d0de8;border:1px solid #34352f;border-radius:12px;width:min(260px,calc(100vw - 60px));box-sizing:border-box;backdrop-filter:blur(12px)}.hud-heading,.light-readout{display:flex;align-items:center;justify-content:space-between;gap:12px}.hud-heading strong{font-size:12px;letter-spacing:.12em}.hud .connection-state{font-size:10px;color:#b2b5aa;letter-spacing:.08em}.network-latency{font-size:10px;color:#8f938b;letter-spacing:.06em;font-variant-numeric:tabular-nums}.light-readout{align-items:flex-start;flex-direction:column;gap:3px}.light-readout #light{font-size:19px;font-weight:700;color:#f1b85b;font-variant-numeric:tabular-nums}.light-readout #light-stage{font-size:10px;letter-spacing:.09em;color:#b8b3a6}.light-track{height:5px;overflow:hidden;background:#292a26;border-radius:99px}.light-track span{display:block;width:0;height:100%;background:#e8b45b;border-radius:99px;transition:width .35s ease}.hud small{color:#9c9e99;font-size:11px}.prompt{position:fixed;left:50%;bottom:36px;transform:translateX(-50%);padding:12px 16px;background:#0c0d0de8;border:1px solid #30312e;border-radius:8px;max-width:calc(100vw - 36px);box-sizing:border-box;text-align:center;backdrop-filter:blur(12px)}@media(max-width:640px){.hud{top:10px;left:10px;width:min(235px,calc(100vw - 20px));padding:12px}.inventory-panel{right:10px!important;top:10px!important;min-width:unset!important;max-width:128px}.quest-panel{top:auto!important;bottom:86px;left:10px!important;min-width:unset!important;width:min(235px,calc(100vw - 20px));box-sizing:border-box}.dialogue-panel{bottom:14px!important}.prompt{bottom:66px;font-size:12px;padding:9px 12px;max-width:calc(100vw - 20px)}}`;
 document.head.appendChild(style);
 
 if (touchDevice) {
@@ -226,6 +228,13 @@ let quests: QuestState[] = [];
 let lightLevel = LIGHT_LEVEL_START;
 let darkDistrictUnlocked = false;
 let finalEventActive = false;
+const networkExperience = createNetworkExperienceState();
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function setLatency(latencyMs: number | null) {
+  const latency = document.getElementById('latency');
+  if (!latency) return;
+  latency.textContent = latencyMs === null ? 'LATENCY --' : `LATENCY ${Math.round(latencyMs)}ms`;
+}
 
 function setConnectionState(state: 'CONNECTING' | 'ONLINE' | 'RECONNECTING' | 'OFFLINE') {
   const connection = document.getElementById('connection');
@@ -266,6 +275,7 @@ function addRemotePlayer(id: PlayerId, transform: PlayerTransform) {
   updateRemoteAvatarDetailMode();
 }
 function handleServerMessage(message: ServerMessage) {
+  if (message.type === 'pong') { applyPong(networkExperience, message.timestamp, Date.now()); setLatency(networkExperience.latencyMs); return; }
   if (message.type === 'session_assigned') {
     sessionToken = message.sessionToken;
     localStorage.setItem(SESSION_STORAGE_KEY, sessionToken);
@@ -314,6 +324,7 @@ function connect() {
   catch { setConnectionState('OFFLINE'); scheduleReconnect(); return; }
   socket.addEventListener('open', () => {
     reconnectAttempt = 0;
+    networkExperience.reconnectCount += 1;
     setConnectionState('ONLINE');
     prompt.textContent = sessionToken ? 'Reconnected. Restoring your neighbourhood...' : 'Welcome. Joining the neighbourhood...';
     send({ type: 'hello', clientVersion: GAME_CLIENT_VERSION, sessionToken });
@@ -400,6 +411,8 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         promptText: prompt.textContent ?? '',
         memoryOpen: memorySequence.isOpen(),
         finalEventActive,
+        latencyMs: networkExperience.latencyMs,
+        reconnectCount: networkExperience.reconnectCount,
         remoteAvatarLodEnabled,
         touchControlsVisible: Boolean(document.querySelector('.touch-controls')),
         graphicsQuality: lowQualityMode ? 'low' : 'high',
@@ -424,6 +437,8 @@ let previousTime = performance.now();
 function update(now: number) {
   const deltaSeconds = Math.min((now - previousTime) / 1000, 0.05);
   previousTime = now;
+  const pingAt = Date.now();
+  if (socket?.readyState === WebSocket.OPEN && shouldSendPing(networkExperience, pingAt)) send({ type: 'ping', timestamp: pingAt });
   const inputX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));
   const inputZ = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
   moveDirection.set(inputX, 0, inputZ);
@@ -438,8 +453,8 @@ function update(now: number) {
   }
   playerCharacter.update(lightLevel, now / 1000, deltaSeconds, moveDirection.lengthSq() > 0);
   for (const remote of remotePlayers.values()) {
-    remote.mesh.position.lerp(remote.target, Math.min(1, deltaSeconds * 10));
-    remote.mesh.rotation.y = THREE.MathUtils.lerp(remote.mesh.rotation.y, remote.rotation, Math.min(1, deltaSeconds * 10));
+    const remoteRotation = interpolateRemoteTransform(remote.mesh.position, remote.target, remote.mesh.rotation.y, remote.rotation, deltaSeconds, reducedMotion ? 7 : 10).rotation;
+    remote.mesh.rotation.y = remoteRotation;
     remote.visual.update(lightLevel, now / 1000, deltaSeconds, remote.mesh.position.distanceTo(remote.target) > 0.02);
   }
   npcActivity.update(lightLevel, now / 1000, deltaSeconds);
@@ -451,10 +466,12 @@ function update(now: number) {
   camera.position.lerp(cameraDesiredPosition, 1 - Math.exp(-deltaSeconds * 7));
   cameraLookTarget.set(player.position.x, player.position.y + 1, player.position.z - 2.2);
   camera.lookAt(cameraLookTarget);
-  diya.rotation.y += deltaSeconds * 0.35;
-  flame.scale.y = 1.55 + Math.sin(now * 0.006) * 0.25;
-  communityFlame.scale.y = 1.9 + Math.sin(now * 0.004) * 0.25;
-  memoryMarker.rotation.y += deltaSeconds * 0.6;
+  if (!reducedMotion) {
+    diya.rotation.y += deltaSeconds * 0.35;
+    flame.scale.y = 1.55 + Math.sin(now * 0.006) * 0.25;
+    communityFlame.scale.y = 1.9 + Math.sin(now * 0.004) * 0.25;
+    memoryMarker.rotation.y += deltaSeconds * 0.6;
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(update);
 }
@@ -476,4 +493,13 @@ addEventListener('resize', () => {
 });
 
 connect();
+setLatency(null);
 requestAnimationFrame(update);
+
+addEventListener('beforeunload', () => {
+  touchControls.dispose();
+  celebration.dispose();
+  memorySequence.close();
+  clearRemotePlayers();
+  if (socket) socket.close();
+});
