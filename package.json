@@ -26,6 +26,7 @@
     "test:browser:mobile": "node scripts/browser-mobile-controls-test.mjs",
     "test:production:health": "node scripts/production-health-check.mjs",
     "test:build:budget": "node scripts/build-performance-budget.mjs",
+    "test:accessibility": "node scripts/accessibility-regression-test.mjs",
     "test:protocol": "node --import tsx scripts/protocol-compatibility-test.mjs",
     "test:network-experience": "node --import tsx scripts/network-experience-test.mjs",
     "test:experience-feedback": "node --import tsx scripts/experience-feedback-test.mjs",
