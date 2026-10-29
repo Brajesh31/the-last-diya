@@ -1,0 +1,42 @@
+name: Server Production Hardening
+
+on:
+  push:
+    paths:
+      - '.github/workflows/server-production-hardening.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add path-aware health and readiness endpoints
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('apps/server/src/index.ts')
+          text = path.read_text()
+          old = "const port = Number(process.env.PORT ?? 8787);\nconst http = createServer((_, response) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ name: 'the-last-diya-server', status: 'ok', phase: 'vertical-slice' })); });"
+          new = "const port = Number(process.env.PORT ?? 8787);\nconst BUILD_VERSION = process.env.BUILD_VERSION ?? 'development';\nconst SERVER_START_TIME = Date.now();\nconst http = createServer((request, response) => {\n  const path = request.url?.split('?')[0] ?? '/';\n  response.setHeader('content-type', 'application/json');\n  response.setHeader('cache-control', 'no-store');\n  if (path === '/health') {\n    response.writeHead(200);\n    response.end(JSON.stringify({ name: 'the-last-diya-server', status: 'ok', version: BUILD_VERSION, uptimeSeconds: Math.floor((Date.now() - SERVER_START_TIME) / 1000) }));\n    return;\n  }\n  if (path === '/ready') {\n    response.writeHead(200);\n    response.end(JSON.stringify({ name: 'the-last-diya-server', status: 'ready', version: BUILD_VERSION }));\n    return;\n  }\n  response.writeHead(404);\n  response.end(JSON.stringify({ status: 'not_found' }));\n});"
+          if old not in text:
+              raise SystemExit('server HTTP handler anchor not found')
+          path.write_text(text.replace(old, new, 1))
+      - name: Verify server
+        run: |
+          npm install
+          npm run typecheck --workspace=@the-last-diya/server
+          npm run build --workspace=@the-last-diya/server
+      - name: Commit server hardening
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/server/src/index.ts
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat(server): add health and readiness endpoints'
+          git push
