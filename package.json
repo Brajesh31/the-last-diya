@@ -24,7 +24,8 @@
     "test:server-security": "node scripts/server-security-test.mjs",
     "test:browser:mobile": "node scripts/browser-mobile-controls-test.mjs",
     "test:production:health": "node scripts/production-health-check.mjs",
-    "test:protocol": "node --import tsx scripts/protocol-compatibility-test.mjs"
+    "test:protocol": "node --import tsx scripts/protocol-compatibility-test.mjs",
+    "test:network-experience": "node --import tsx scripts/network-experience-test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"
