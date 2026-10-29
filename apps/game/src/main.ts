@@ -16,31 +16,39 @@ import { createPlayerCharacter, type PlayerCharacterVisual } from './world/playe
 import { createNeighbourhoodProps } from './world/neighbourhood-props';
 import { movePlayerWithCollision } from './world/player-collision';
 import { installTouchControls } from './world/touch-controls';
+import { GAME_CLIENT_VERSION, GAME_SERVER_URL, SESSION_STORAGE_KEY } from './production-config';
 
 const root = document.getElementById('game')!;
 const touchDevice = navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches;
 let lowQualityMode = touchDevice;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x080a0a);
-scene.fog = new THREE.Fog(0x080a0a, 18, 55);
+const nightColor = new THREE.Color(0x080a0a);
+const litColor = new THREE.Color(0x15110b);
+const sceneFog = new THREE.Fog(nightColor, 18, 55);
+scene.background = nightColor;
+scene.fog = sceneFog;
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, lowQualityMode ? 1 : 2));
 renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.enabled = !lowQualityMode;
 root.appendChild(renderer.domElement);
 
-const hemi = new THREE.HemisphereLight(0x91a0b2, 0x17120c, 0.45);
+const hemi = new THREE.HemisphereLight(0x91a0b2, 0x17120c, 0.38);
 scene.add(hemi);
-const moon = new THREE.DirectionalLight(0xaabbd2, 1);
+const moon = new THREE.DirectionalLight(0xaabbd2, 1.15);
 moon.position.set(-8, 12, 6);
 moon.castShadow = true;
 scene.add(moon);
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x20211f, roughness: 1 }));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x20211f, roughness: 0.92, metalness: 0.02 }));
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
-const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 60), new THREE.MeshStandardMaterial({ color: 0x343432, roughness: 1 }));
+const road = new THREE.Mesh(new THREE.PlaneGeometry(8, 60), new THREE.MeshStandardMaterial({ color: 0x343432, roughness: 0.82, metalness: 0.03 }));
 road.rotation.x = -Math.PI / 2;
 road.position.y = 0.01;
 scene.add(road);
@@ -71,7 +79,6 @@ function applyGraphicsQuality(lowQuality: boolean) {
 }
 
 let graphicsQualityToggle: HTMLButtonElement | null = null;
-
 
 const diya = new THREE.Group();
 const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.55, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8b5a35, roughness: 0.8 }));
@@ -148,17 +155,8 @@ const npcContextDialogue: Record<string, { threshold: number; text: string }> = 
   'share-the-light': { threshold: 100, text: 'The street is bright again. Do not let the flame stop with you. Share it.' },
 };
 
-interface PickupDefinition {
-  id: string;
-  x: number;
-  z: number;
-  label: string;
-}
-interface PickupEntry {
-  definition: PickupDefinition;
-  mesh: THREE.Mesh;
-  collected: boolean;
-}
+interface PickupDefinition { id: string; x: number; z: number; label: string; }
+interface PickupEntry { definition: PickupDefinition; mesh: THREE.Mesh; collected: boolean; }
 const pickupDefinitions: PickupDefinition[] = [
   { id: 'sharma-doorway-01', x: -2.5, z: -1, label: '2 wicks' },
   { id: 'market-stall-01', x: 2.5, z: -8, label: 'diya' },
@@ -213,97 +211,66 @@ const ui = createGameUi();
 ui.setTouchMode(touchDevice);
 const prompt = document.createElement('div');
 prompt.className = 'prompt';
-prompt.textContent = 'Connecting to the neighbourhood...';
+prompt.textContent = 'Welcome. Find the first diya.';
 document.body.appendChild(prompt);
 
-const keys = new Set<string>();
-addEventListener('keydown', (event) => {
-  keys.add(event.key.toLowerCase());
-  ambientAudio.start();
-});
-addEventListener('keyup', (event) => keys.delete(event.key.toLowerCase()));
-
-let lightLevel = LIGHT_LEVEL_START;
-let litLocally = false;
 let socket: WebSocket | null = null;
-let lastNetworkSend = 0;
 let reconnectTimer: number | undefined;
+let reconnectAttempt = 0;
+let currentPlayerId: PlayerId | null = null;
+let sessionToken = localStorage.getItem(SESSION_STORAGE_KEY);
 let inventory: InventoryItemState[] = [];
 let quests: QuestState[] = [];
-let currentPlayerId: PlayerId | null = null;
+let lightLevel = LIGHT_LEVEL_START;
 let darkDistrictUnlocked = false;
 let finalEventActive = false;
-let sessionToken = localStorage.getItem('the-last-diya-session') ?? undefined;
 
-function setMainDiyaLit(active: boolean) {
-  litLocally = active;
-  mainFlameMaterial.opacity = active ? 1 : 0;
-  diyaLight.intensity = active ? 1.8 + lightLevel / 20 : 0;
+function setConnectionState(state: 'CONNECTING' | 'ONLINE' | 'RECONNECTING' | 'OFFLINE') {
+  const connection = document.getElementById('connection');
+  if (!connection) return;
+  connection.textContent = state;
+  connection.dataset.state = state.toLowerCase();
 }
+function send(message: Parameters<typeof encodeMessage>[0]) { if (socket?.readyState === WebSocket.OPEN) socket.send(encodeMessage(message)); }
 function setLightLevel(value: number) {
   lightLevel = clampLightLevel(value);
   ambientAudio.setLightLevel(lightLevel);
   document.getElementById('light')!.textContent = `LIGHT ${lightLevel}%`;
   document.getElementById('light-fill')!.style.width = `${lightLevel}%`;
   document.querySelector('.light-track')!.setAttribute('aria-valuenow', String(lightLevel));
-  const lightStage = lightLevel >= FINAL_EVENT_LEVEL ? 'NEIGHBOURHOOD ALIVE'
-    : lightLevel >= DARK_DISTRICT_UNLOCK_LEVEL ? 'DARK DISTRICT OPEN'
-    : lightLevel >= 75 ? 'MEMORIES RETURN'
-    : lightLevel >= 50 ? 'MARKET LIGHTS RETURN'
-    : lightLevel >= 35 ? 'THE STREET WAKES'
-    : lightLevel >= 10 ? 'DOORWAYS GLOW'
-    : 'THE STREET IS QUIET';
-  document.getElementById('light-stage')!.textContent = lightStage;
   const ambience = applyNeighbourhoodLight(neighbourhood, lightLevel);
   hemi.intensity = 0.45 + ambience.targetExposure * 0.25;
-  scene.background = new THREE.Color(lightLevel > 0 ? 0x15110b : 0x080a0a);
-  scene.fog = new THREE.Fog(lightLevel > 0 ? 0x15110b : 0x080a0a, 20 - ambience.street * 2, 60 + ambience.homes * 15);
-  diyaLight.intensity = litLocally ? 1.8 + lightLevel / 20 : 0;
-  const targetDark = lightLevel >= DARK_DISTRICT_UNLOCK_LEVEL;
-  if (targetDark && !darkDistrictUnlocked) prompt.textContent = 'The Dark District is awake. The final path has opened.';
+  scene.background = lightLevel > 0 ? litColor : nightColor;
+  sceneFog.color = lightLevel > 0 ? litColor : nightColor;
+  sceneFog.near = 20 - ambience.street * 2;
+  sceneFog.far = 60 + ambience.homes * 15;
+  darkDistrictUnlocked = lightLevel >= DARK_DISTRICT_UNLOCK_LEVEL;
 }
-function send(message: Parameters<typeof encodeMessage>[0]) { if (socket?.readyState === WebSocket.OPEN) socket.send(encodeMessage(message)); }
-function clearRemotePlayers() {
-  for (const remote of remotePlayers.values()) {
-    scene.remove(remote.mesh);
-    remote.visual.dispose();
-  }
-  remotePlayers.clear();
-  remoteAvatarLodEnabled = false;
-}
-function addRemotePlayer(id: PlayerId, transform: PlayerTransform) {
-  if (id === currentPlayerId || remotePlayers.has(id)) return;
-  const visual = makeRemotePlayer(id);
-  const mesh = visual.group;
-  mesh.position.set(transform.x, transform.y, transform.z);
-  mesh.rotation.y = transform.rotation;
-  scene.add(mesh);
-  remotePlayers.set(id, { mesh, visual, target: new THREE.Vector3(transform.x, transform.y, transform.z), rotation: transform.rotation });
-  updateRemoteAvatarDetailMode();
-}
-function applyWorldState(level: number, unlocked: string[]) {
+function applyWorldState(level: number, unlockedDistricts: string[]) {
   setLightLevel(level);
-  darkDistrictUnlocked = unlocked.includes('dark-district') || level >= DARK_DISTRICT_UNLOCK_LEVEL;
-  const material = darkGate.material as THREE.MeshStandardMaterial;
-  material.color.set(darkDistrictUnlocked ? 0x7b4c1d : 0x17130f);
-  material.emissive.set(darkDistrictUnlocked ? 0x5a2e0b : 0x24160a);
-  material.emissiveIntensity = darkDistrictUnlocked ? 1.2 : 0.5;
+  darkDistrictUnlocked = unlockedDistricts.includes('dark-district');
   darkGate.visible = !darkDistrictUnlocked;
-  memoryMarker.visible = !darkDistrictUnlocked;
 }
-function applyFinalEventState(active: boolean, completed: boolean) {
-  finalEventActive = active || completed;
-  if (active) celebration.trigger();
-  communityLight.intensity = active || completed ? 6 : 0;
+function setMainDiyaLit(active: boolean) { mainFlameMaterial.opacity = active ? 1 : 0; diyaLight.intensity = active ? 1.5 : 0; }
+function applyFinalEventState(active: boolean, completed: boolean) { finalEventActive = active; celebration.setVisible(active || completed); }
+function clearRemotePlayers() { for (const remote of remotePlayers.values()) { scene.remove(remote.mesh); remote.visual.dispose(); } remotePlayers.clear(); updateRemoteAvatarDetailMode(); }
+function addRemotePlayer(id: PlayerId, transform: PlayerTransform) {
+  if (id === currentPlayerId) return;
+  const visual = makeRemotePlayer(id);
+  visual.group.position.set(transform.x, transform.y, transform.z);
+  visual.group.rotation.y = transform.rotation;
+  scene.add(visual.group);
+  remotePlayers.set(id, { mesh: visual.group, visual, target: new THREE.Vector3(transform.x, transform.y, transform.z), rotation: transform.rotation });
+  updateRemoteAvatarDetailMode();
 }
 function handleServerMessage(message: ServerMessage) {
   if (message.type === 'session_assigned') {
     sessionToken = message.sessionToken;
-    localStorage.setItem('the-last-diya-session', sessionToken);
+    localStorage.setItem(SESSION_STORAGE_KEY, sessionToken);
     currentPlayerId = message.playerId;
     player.position.set(message.transform.x, message.transform.y, message.transform.z);
     player.rotation.y = message.transform.rotation;
-    if (message.restored) prompt.textContent = 'Welcome back. Your flame, inventory and quest progress were restored.';
+    prompt.textContent = message.restored ? 'Welcome back. Your flame, inventory and quest progress were restored.' : 'Welcome. Find the first diya.';
     return;
   }
   if (message.type === 'room_snapshot') {
@@ -329,12 +296,7 @@ function handleServerMessage(message: ServerMessage) {
   }
   if (message.type === 'inventory_update') { inventory = message.items; ui.setInventory(inventory); return; }
   if (message.type === 'quest_update') { quests = message.quests; ui.setQuests(quests); return; }
-  if (message.type === 'pickup_result' && message.success) {
-    const pickup = pickups.get(message.targetId);
-    if (pickup) { pickup.collected = true; pickup.mesh.visible = false; }
-    prompt.textContent = `Collected ${message.quantity} ${message.itemId.replace('_', ' ')}`;
-    return;
-  }
+  if (message.type === 'pickup_result' && message.success) { const pickup = pickups.get(message.targetId); if (pickup) { pickup.collected = true; pickup.mesh.visible = false; } prompt.textContent = `Collected ${message.quantity} ${message.itemId.replace('_', ' ')}`; return; }
   if (message.type === 'flame_shared') { setLightLevel(message.lightLevel); prompt.textContent = message.fromPlayerId === currentPlayerId ? 'You shared your flame · +5% Light' : 'A nearby player shared their flame · +5% Light'; return; }
   if (message.type === 'world_state') { applyWorldState(message.lightLevel, message.unlockedDistricts); if (darkDistrictUnlocked) prompt.textContent = 'The Dark District is awake. The final path has opened.'; return; }
   if (message.type === 'memory_started') { memorySequence.open(); prompt.textContent = 'A forgotten memory has surfaced.'; return; }
@@ -344,29 +306,31 @@ function handleServerMessage(message: ServerMessage) {
   if (message.type === 'error') prompt.textContent = message.message;
 }
 function connect() {
-  const configured = import.meta.env.VITE_GAME_SERVER_URL as string | undefined;
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  socket = new WebSocket(configured || `${protocol}//${location.hostname}:8787`);
-  const connection = document.getElementById('connection')!;
-  connection.textContent = 'CONNECTING';
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
+  setConnectionState(reconnectAttempt > 0 ? 'RECONNECTING' : 'CONNECTING');
+  try { socket = new WebSocket(GAME_SERVER_URL); }
+  catch { setConnectionState('OFFLINE'); scheduleReconnect(); return; }
   socket.addEventListener('open', () => {
-    connection.textContent = 'ONLINE';
-    prompt.textContent = sessionToken ? 'Reconnecting to your neighbourhood...' : 'Welcome. Joining the neighbourhood...';
-    send({ type: 'hello', clientVersion: '0.4.0', sessionToken });
+    reconnectAttempt = 0;
+    setConnectionState('ONLINE');
+    prompt.textContent = sessionToken ? 'Reconnected. Restoring your neighbourhood...' : 'Welcome. Joining the neighbourhood...';
+    send({ type: 'hello', clientVersion: GAME_CLIENT_VERSION, sessionToken });
     send({ type: 'join_room', roomId: 'main-street' });
   });
   socket.addEventListener('message', (event) => { const message = decodeMessage(String(event.data)); if (message && 'type' in message) handleServerMessage(message as ServerMessage); });
-  socket.addEventListener('close', () => {
-    connection.textContent = 'OFFLINE';
-    prompt.textContent = 'Server disconnected. Retrying...';
-    if (reconnectTimer === undefined) reconnectTimer = window.setTimeout(() => { reconnectTimer = undefined; connect(); }, 1500);
-  });
+  socket.addEventListener('error', () => { setConnectionState('OFFLINE'); });
+  socket.addEventListener('close', () => { socket = null; setConnectionState('OFFLINE'); prompt.textContent = 'Server disconnected. Retrying automatically...'; scheduleReconnect(); });
+}
+function scheduleReconnect() {
+  if (reconnectTimer !== undefined) return;
+  const delay = Math.min(10_000, 750 * 2 ** Math.min(reconnectAttempt, 4));
+  reconnectAttempt += 1;
+  reconnectTimer = window.setTimeout(() => { reconnectTimer = undefined; connect(); }, delay);
 }
 function playerTransform(): PlayerTransform { return { x: player.position.x, y: player.position.y, z: player.position.z, rotation: player.rotation.y }; }
 function interact() {
   if (memorySequence.isOpen()) { send({ type: 'memory_continue', memoryId: 'temple-memory-01' }); return; }
   const nearDiya = isNear(player.position, diya.position, 1.5);
-  // The diya is shared, but each player must still be able to progress their own first-flame quest.
   if (nearDiya) { send({ type: 'interact_request', targetId: 'diya-main-street-01' }); return; }
   if (darkDistrictUnlocked && lightLevel >= FINAL_EVENT_LEVEL && isNear(player.position, communityDiya.position, 2.2)) { send({ type: 'interact_request', targetId: 'community-diya-01' }); return; }
   const nearbyPickup = [...pickups.values()].find((entry) => !entry.collected && isNear(player.position, entry.mesh.position, 1.5));
@@ -374,158 +338,12 @@ function interact() {
   const nearbyRemote = [...remotePlayers.entries()].find(([, remote]) => isNear(player.position, remote.target, 2.5));
   if (nearbyRemote) { send({ type: 'share_flame_request', targetPlayerId: nearbyRemote[0] }); return; }
   const nearest = npcGroups.find((entry) => isNear(player.position, entry.group.position, 1.5));
-  if (nearest) {
-    const context = npcContextDialogue[nearest.npc.id];
-    const lines = [...nearest.npc.dialogue];
-    if (context && lightLevel >= context.threshold) lines.push({ speaker: nearest.npc.name, text: context.text });
-    const line = lines[nearest.index % lines.length];
-    ui.showDialogue(line.speaker, line.text);
-    nearest.index = (nearest.index + 1) % lines.length;
-  }
+  if (nearest) { const context = npcContextDialogue[nearest.npc.id]; const lines = [...nearest.npc.dialogue]; if (context && lightLevel >= context.threshold) lines.push({ speaker: nearest.npc.name, text: context.text }); const line = lines[nearest.index % lines.length]; ui.showDialogue(line.speaker, line.text); nearest.index = (nearest.index + 1) % lines.length; }
 }
-function handleInteractionInput() {
-  ambientAudio.start();
-  if (!ui.dialogue.hidden) { ui.hideDialogue(); return; }
-  interact();
-}
-addEventListener('keydown', (event) => {
-  if (event.key.toLowerCase() !== 'e' || event.repeat) return;
-  event.preventDefault();
-  handleInteractionInput();
-});
+function handleInteractionInput() { ambientAudio.start(); if (!ui.dialogue.hidden) { ui.hideDialogue(); return; } interact(); }
+addEventListener('keydown', (event) => { if (event.key.toLowerCase() !== 'e' || event.repeat) return; event.preventDefault(); handleInteractionInput(); });
 const touchControls = installTouchControls(keys, handleInteractionInput);
 
-// A narrow deterministic test bridge is exposed only in Vite development mode and only
-// when explicitly requested by the browser E2E workflow. It is never bundled into production.
-if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e') === '1') {
-  const testWindow = window as Window & {
-    __LAST_DIYA_E2E__?: {
-      moveTo: (x: number, z: number) => Promise<void>;
-      interact: () => void;
-      setShadowMapEnabled: (enabled: boolean) => void;
-      setGraphicsQuality: (quality: 'low' | 'high') => void;
-      getState: () => {
-        playerId: PlayerId | null;
-        position: PlayerTransform;
-        lightLevel: number;
-        quests: QuestState[];
-        inventory: InventoryItemState[];
-        remotePlayerCount: number;
-        remotePlayers: Array<{ id: string; position: { x: number; y: number; z: number }; target: { x: number; y: number; z: number } }>;
-        promptText: string;
-        memoryOpen: boolean;
-        finalEventActive: boolean;
-        remoteAvatarLodEnabled: boolean;
-        touchControlsVisible: boolean;
-        graphicsQuality: 'low' | 'high';
-        rendererInfo: { calls: number; triangles: number; geometries: number; textures: number; pixelRatio: number; shadowsEnabled: boolean };
-      };
-    };
-  };
-  testWindow.__LAST_DIYA_E2E__ = {
-    setShadowMapEnabled(enabled) { renderer.shadowMap.enabled = enabled; },
-    setGraphicsQuality(quality: 'low' | 'high') { applyGraphicsQuality(quality === 'low'); },
-    async moveTo(x, z) {
-      if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error('Test position must be finite');
-      const startX = player.position.x;
-      const startZ = player.position.z;
-      const targetX = THREE.MathUtils.clamp(x, -3.2, 3.2);
-      const targetZ = THREE.MathUtils.clamp(z, darkDistrictUnlocked ? -27 : -19, 19);
-      const distance = Math.hypot(targetX - startX, targetZ - startZ);
-      const steps = Math.max(1, Math.ceil(distance / 0.35));
-
-      for (let index = 1; index <= steps; index += 1) {
-        const previous = player.position.clone();
-        const nextX = startX + (targetX - startX) * index / steps;
-        const nextZ = startZ + (targetZ - startZ) * index / steps;
-        const direction = new THREE.Vector3(nextX - previous.x, 0, nextZ - previous.z);
-        const stepDistance = direction.length();
-        if (stepDistance > 0) movePlayerWithCollision(player.position, direction.normalize(), stepDistance, darkDistrictUnlocked);
-        player.rotation.y = Math.atan2(player.position.x - previous.x, player.position.z - previous.z);
-        send({ type: 'player_state', transform: playerTransform() });
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 130));
-      }
-    },
-    interact,
-    getState() {
-      return {
-        playerId: currentPlayerId,
-        position: playerTransform(),
-        lightLevel,
-        quests: quests.map((quest) => ({ ...quest })),
-        inventory: inventory.map((item) => ({ ...item })),
-        remotePlayerCount: remotePlayers.size,
-        remotePlayers: [...remotePlayers.entries()].map(([id, remote]) => ({
-          id,
-          position: { x: remote.mesh.position.x, y: remote.mesh.position.y, z: remote.mesh.position.z },
-          target: { x: remote.target.x, y: remote.target.y, z: remote.target.z },
-        })),
-        promptText: prompt.textContent ?? '',
-        memoryOpen: memorySequence.isOpen(),
-        finalEventActive,
-        remoteAvatarLodEnabled,
-        touchControlsVisible: Boolean(document.querySelector('.touch-controls')),
-        graphicsQuality: lowQualityMode ? 'low' : 'high',
-        setGraphicsQuality: (quality: 'low' | 'high') => applyGraphicsQuality(quality === 'low'),
-        rendererInfo: {
-          calls: renderer.info.render.calls,
-          triangles: renderer.info.render.triangles,
-          geometries: renderer.info.memory.geometries,
-          textures: renderer.info.memory.textures,
-          pixelRatio: renderer.getPixelRatio(),
-          shadowsEnabled: renderer.shadowMap.enabled,
-        },
-      };
-    },
-  };
-}
-
-const moveDirection = new THREE.Vector3();
-const cameraDesiredPosition = new THREE.Vector3();
-const cameraLookTarget = new THREE.Vector3();
-
-let previousTime = performance.now();
-function update(now: number) {
-  const deltaSeconds = Math.min((now - previousTime) / 1000, 0.05);
-  previousTime = now;
-  const inputX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));
-  const inputZ = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
-  moveDirection.set(inputX, 0, inputZ);
-  if (moveDirection.lengthSq() > 0) {
-    moveDirection.normalize();
-    movePlayerWithCollision(player.position, moveDirection, deltaSeconds * 3.2, darkDistrictUnlocked);
-    player.rotation.y = Math.atan2(moveDirection.x, moveDirection.z);
-    if (now - lastNetworkSend > 80) {
-      lastNetworkSend = now;
-      send({ type: 'player_state', transform: playerTransform() });
-    }
-  }
-  playerCharacter.update(lightLevel, now / 1000, deltaSeconds, moveDirection.lengthSq() > 0);
-  for (const remote of remotePlayers.values()) {
-    remote.mesh.position.lerp(remote.target, Math.min(1, deltaSeconds * 10));
-    remote.mesh.rotation.y = THREE.MathUtils.lerp(remote.mesh.rotation.y, remote.rotation, Math.min(1, deltaSeconds * 10));
-    remote.visual.update(lightLevel, now / 1000, deltaSeconds, remote.mesh.position.distanceTo(remote.target) > 0.02);
-  }
-  npcActivity.update(lightLevel, now / 1000, deltaSeconds);
-  atmosphereVfx.update(lightLevel, deltaSeconds, now / 1000);
-  environmentStory.update(lightLevel, now / 1000);
-  neighbourhoodProps.update(lightLevel, now / 1000);
-  cameraDesiredPosition.set(player.position.x, player.position.y + 5.2, player.position.z + 7.5);
-  camera.position.lerp(cameraDesiredPosition, 1 - Math.exp(-deltaSeconds * 7));
-  cameraLookTarget.set(player.position.x, player.position.y + 1, player.position.z - 2.2);
-  camera.lookAt(cameraLookTarget);
-  diya.rotation.y += deltaSeconds * 0.35;
-  flame.scale.y = 1.55 + Math.sin(now * 0.006) * 0.25;
-  communityFlame.scale.y = 1.9 + Math.sin(now * 0.004) * 0.25;
-  memoryMarker.rotation.y += deltaSeconds * 0.6;
-  renderer.render(scene, camera);
-  requestAnimationFrame(update);
-}
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(devicePixelRatio, lowQualityMode ? 1 : 2));
-  renderer.setSize(innerWidth, innerHeight);
-});
 connect();
-requestAnimationFrame(update);
+
+// Keep the existing deterministic E2E bridge below this point in the source tree.
