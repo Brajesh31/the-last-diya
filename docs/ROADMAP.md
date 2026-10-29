@@ -92,6 +92,8 @@
 - [x] Axis-separated movement allows sliding around blocked props
 - [x] Interaction hotspots remain reachable around market stalls and temple platform
 - [x] Two-client Chromium E2E verifies the full five-quest progression through final community celebration
+- [x] Production visual dressing pass: facade details, awnings, balconies, planters, festival rangoli and overhead street dressing
+- [x] Production HUD/onboarding presentation pass with boot transition and responsive glass panels
 - [ ] Replace prototype geometry with authored, final-quality character and environment assets
 - [ ] Playtest full five-quest progression manually with two browser clients
 
