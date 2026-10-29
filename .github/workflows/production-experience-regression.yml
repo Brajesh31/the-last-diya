@@ -79,6 +79,13 @@ jobs:
           BROWSER_TIMEOUT_MS: 30000
           BROWSER_STARTUP_TIMEOUT_MS: 60000
         run: npm run test:browser:multiplayer
+      - name: Browser reconnect and session restoration
+        env:
+          GAME_URL: http://127.0.0.1:5174/?e2e=1
+          GAME_SERVER_URL: ws://127.0.0.1:8787
+          BROWSER_TIMEOUT_MS: 30000
+          BROWSER_STARTUP_TIMEOUT_MS: 60000
+        run: npm run test:browser:reconnect
       - name: Browser mobile journey
         env:
           GAME_URL: http://127.0.0.1:5174/?e2e=1
