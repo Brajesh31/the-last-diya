@@ -1,0 +1,46 @@
+name: Production Experience Regression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-experience-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  experience:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Protocol regression
+        run: npm run test:protocol
+      - name: Network experience regression
+        run: npm run test:network-experience
+      - name: Contextual feedback regression
+        run: npm run test:experience-feedback
+      - name: Reconnect and final event regression
+        run: npm run test:reconnect-final-event
+      - name: Renderer disposal audit
+        run: node scripts/renderer-disposal-audit.mjs
+      - name: Player collision regression
+        run: npm run test:collision
+      - name: Vertical slice regression
+        run: npm run test:vertical-slice
