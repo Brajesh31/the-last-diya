@@ -1,0 +1,51 @@
+name: Renderer Disposal Audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/game/src/**'
+      - 'scripts/renderer-disposal-audit.mjs'
+      - '.github/workflows/renderer-disposal-audit.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Integrate renderer cleanup idempotently
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('apps/game/src/main.ts')
+          text = path.read_text()
+          marker = "const renderer = new THREE.WebGLRenderer({ antialias: true });"
+          cleanup = '''\nfunction disposeRendererResources() {\n  for (const remote of remotePlayers.values()) {\n    remote.visual.dispose();\n    scene.remove(remote.mesh);\n  }\n  remotePlayers.clear();\n  for (const child of [...scene.children]) {\n    if (child === player || child === camera) continue;\n    scene.remove(child);\n    child.traverse((object) => {\n      if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points) {\n        object.geometry.dispose();\n        const material = object.material;\n        for (const current of Array.isArray(material) ? material : [material]) current.dispose();\n      }\n    });\n  }\n  renderer.dispose();\n}\n\n'''
+          if 'function disposeRendererResources()' not in text:
+              text = text.replace(marker, cleanup + marker, 1)
+          if "addEventListener('pagehide', disposeRendererResources)" not in text:
+              text += "\naddEventListener('pagehide', disposeRendererResources);\n"
+          path.write_text(text)
+      - run: npm run typecheck
+      - run: npm run build
+      - run: node scripts/renderer-disposal-audit.mjs
+      - name: Commit cleanup integration
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/game/src/main.ts scripts/renderer-disposal-audit.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix(rendering): dispose scene resources on page exit'
+          git push
