@@ -88,12 +88,15 @@ jobs:
 
           once(
               "  const inputX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));",
-              "  if (socket?.readyState === WebSocket.OPEN && shouldSendPing(networkExperience, Date.now())) send({ type: 'ping', timestamp: Date.now() });\n  const inputX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));","              'ping scheduling',
+              "  const pingAt = Date.now();\n  if (socket?.readyState === WebSocket.OPEN && shouldSendPing(networkExperience, pingAt)) send({ type: 'ping', timestamp: pingAt });\n  const inputX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));",
+              'ping scheduling',
           )
 
-          old_remote = "    remote.mesh.position.lerp(remote.target, Math.min(1, deltaSeconds * 10));\n    remote.mesh.rotation.y = THREE.MathUtils.lerp(remote.mesh.rotation.y, remote.rotation, Math.min(1, deltaSeconds * 10));"
-          new_remote = "    const remoteRotation = interpolateRemoteTransform(remote.mesh.position, remote.target, remote.mesh.rotation.y, remote.rotation, deltaSeconds, reducedMotion ? 7 : 10).rotation;\n    remote.mesh.rotation.y = remoteRotation;"
-          once(old_remote, new_remote, 'remote interpolation')
+          once(
+              "    remote.mesh.position.lerp(remote.target, Math.min(1, deltaSeconds * 10));\n    remote.mesh.rotation.y = THREE.MathUtils.lerp(remote.mesh.rotation.y, remote.rotation, Math.min(1, deltaSeconds * 10));",
+              "    const remoteRotation = interpolateRemoteTransform(remote.mesh.position, remote.target, remote.mesh.rotation.y, remote.rotation, deltaSeconds, reducedMotion ? 7 : 10).rotation;\n    remote.mesh.rotation.y = remoteRotation;",
+              'remote interpolation',
+          )
 
           once(
               "        finalEventActive,\n        remoteAvatarLodEnabled,",
