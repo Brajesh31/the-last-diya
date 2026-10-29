@@ -19,8 +19,13 @@ assert.match(recoveryMessage(reconnect), /offline/i);
 
 let finalEvent = createFinalEventProgress(0);
 assert.equal(finalEvent.state, 'locked');
+assert.equal(finalEvent.completedAt, null);
+assert.deepEqual(beginFinalEvent(finalEvent), finalEvent, 'locked final event cannot start early');
+assert.deepEqual(beginCelebration(finalEvent), finalEvent, 'locked final event cannot celebrate early');
+
 finalEvent = updateFinalEventReadiness(finalEvent, 100, 2);
 assert.equal(finalEvent.state, 'ready');
+assert.equal(finalEvent.lightLevel, 100);
 assert.equal(finalEvent.participantCount, 2);
 finalEvent = beginFinalEvent(finalEvent);
 assert.equal(finalEvent.state, 'starting');
@@ -29,5 +34,14 @@ assert.equal(finalEvent.state, 'celebrating');
 finalEvent = completeFinalEvent(finalEvent, 9000);
 assert.equal(finalEvent.state, 'completed');
 assert.equal(finalEvent.completedAt, 9000);
+
+// Re-entry/readiness updates must never reopen a completed community event.
+const completedSnapshot = updateFinalEventReadiness(finalEvent, 100, 3);
+assert.equal(completedSnapshot.state, 'completed');
+assert.equal(completedSnapshot.completedAt, 9000);
+assert.equal(completedSnapshot.participantCount, 3);
+assert.deepEqual(beginFinalEvent(completedSnapshot), completedSnapshot, 'completed event cannot restart');
+assert.deepEqual(beginCelebration(completedSnapshot), completedSnapshot, 'completed event cannot re-enter celebration');
+assert.deepEqual(completeFinalEvent(completedSnapshot, 12000), completedSnapshot, 'completed timestamp is immutable');
 
 console.log('reconnect/final-event regression: ok');
