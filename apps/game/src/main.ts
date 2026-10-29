@@ -145,6 +145,7 @@ const npcContextDialogue: Record<string, { threshold: number; text: string }> = 
   'chai-seller': { threshold: 40, text: 'The kettle sounds different when people stop by again.' },
   'temple-caretaker': { threshold: 65, text: 'You have brought enough light for an old memory to be seen.' },
   'unknown-stranger': { threshold: 85, text: 'The last district is opening. Some memories return only when the light is shared.' },
+  'share-the-light': { threshold: 100, text: 'The street is bright again. Do not let the flame stop with you. Share it.' },
 };
 
 interface PickupDefinition {
@@ -499,16 +500,16 @@ function update(now: number) {
       send({ type: 'player_state', transform: playerTransform() });
     }
   }
-  playerCharacter.update(deltaSeconds, moveDirection.lengthSq() > 0);
+  playerCharacter.update(lightLevel, now / 1000, deltaSeconds, moveDirection.lengthSq() > 0);
   for (const remote of remotePlayers.values()) {
     remote.mesh.position.lerp(remote.target, Math.min(1, deltaSeconds * 10));
     remote.mesh.rotation.y = THREE.MathUtils.lerp(remote.mesh.rotation.y, remote.rotation, Math.min(1, deltaSeconds * 10));
-    remote.visual.update(deltaSeconds, remote.mesh.position.distanceTo(remote.target) > 0.02);
+    remote.visual.update(lightLevel, now / 1000, deltaSeconds, remote.mesh.position.distanceTo(remote.target) > 0.02);
   }
-  npcActivity.update(deltaSeconds, lightLevel);
-  atmosphereVfx.update(deltaSeconds, lightLevel);
-  environmentStory.update(deltaSeconds, lightLevel);
-  neighbourhoodProps.update(deltaSeconds, lightLevel);
+  npcActivity.update(lightLevel, now / 1000, deltaSeconds);
+  atmosphereVfx.update(lightLevel, deltaSeconds, now / 1000);
+  environmentStory.update(lightLevel, now / 1000);
+  neighbourhoodProps.update(lightLevel, now / 1000);
   cameraDesiredPosition.set(player.position.x, player.position.y + 5.2, player.position.z + 7.5);
   camera.position.lerp(cameraDesiredPosition, 1 - Math.exp(-deltaSeconds * 7));
   cameraLookTarget.set(player.position.x, player.position.y + 1, player.position.z - 2.2);

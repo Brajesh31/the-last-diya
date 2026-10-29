@@ -48,7 +48,8 @@
 - [x] Quest pickups are scoped per player and restored in their room snapshot
 - [x] First-session onboarding overlay with persistent dismissal
 - [x] Mobile dialogue continuation hint uses touch interaction instead of keyboard-only instructions
-- [ ] Extended quest content beyond the five-quest vertical slice
+- [x] First post-finale cooperative epilogue quest: Share the Light
+- [ ] Extended quest content beyond the six-quest story arc
 
 ## Phase 3 · Multiplayer Prototype | In progress
 - [x] Room lifecycle

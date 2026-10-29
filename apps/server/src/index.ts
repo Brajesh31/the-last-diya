@@ -329,7 +329,10 @@ function handleMessage(socket: WebSocket, message: ClientMessage) {
     const target = [...players.values()].find((entry) => entry.id === message.targetPlayerId && entry.roomId === player.roomId);
     if (!target || target.id === player.id) { send(socket, { type: 'error', code: 'PLAYER_NOT_FOUND', message: 'That player is no longer nearby' }); return; }
     if (!isNear(player.transform, target.transform, FLAME_SHARE_RADIUS)) { send(socket, { type: 'error', code: 'TOO_FAR', message: 'Stand closer to share your flame' }); return; }
-    increaseLight(player.roomId, player.id, 5); broadcastRoom(player.roomId, { type: 'flame_shared', fromPlayerId: player.id, toPlayerId: target.id, lightLevel: getRoomLight(player.roomId) }); return;
+    increaseLight(player.roomId, player.id, 5);
+    // The post-finale epilogue is personal: every player must make three meaningful shares.
+    advanceQuest(player, 'share-the-light');
+    broadcastRoom(player.roomId, { type: 'flame_shared', fromPlayerId: player.id, toPlayerId: target.id, lightLevel: getRoomLight(player.roomId) }); return;
   }
   if (message.type === 'ping') { player.lastPongAt = Date.now(); send(socket, { type: 'pong', timestamp: message.timestamp }); }
 }

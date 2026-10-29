@@ -1,4 +1,4 @@
-export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya';
+export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya' | 'share-the-light';
 
 export type QuestStatus = 'locked' | 'available' | 'active' | 'completed';
 
@@ -23,6 +23,7 @@ export const QUESTS: QuestDefinition[] = [
   { id: 'market-lights', title: 'Lights of the Market', description: 'Help bring three stalls back to life.', requires: ['help-sharma-aunty'], reward: { itemId: 'diya', quantity: 3 } },
   { id: 'temple-memory', title: 'A Forgotten Memory', description: 'Discover the memory hidden near the old temple.', requires: ['market-lights'], reward: { itemId: 'memory_fragment', quantity: 1 } },
   { id: 'last-diya', title: 'The Last Diya', description: 'Carry the final flame to the dark district.', requires: ['temple-memory'] },
+  { id: 'share-the-light', title: 'Share the Light', description: 'Keep the celebration alive by sharing your flame with three neighbours.', requires: ['last-diya'], reward: { itemId: 'sweet', quantity: 2 } },
 ];
 
 export function initialQuestStates(): QuestState[] {
@@ -30,7 +31,7 @@ export function initialQuestStates(): QuestState[] {
     id: quest.id,
     status: index === 0 ? 'available' : 'locked',
     progress: 0,
-    target: quest.id === 'market-lights' ? 3 : 1,
+    target: quest.id === 'market-lights' || quest.id === 'share-the-light' ? 3 : 1,
   }));
 }
 

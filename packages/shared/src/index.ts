@@ -12,7 +12,7 @@ export type ItemId = 'diya' | 'oil' | 'wick' | 'flower' | 'sweet' | 'memory_frag
 export interface PlayerTransform { x: number; y: number; z: number; rotation: number; }
 export interface InventoryItemState { id: ItemId; quantity: number; }
 
-export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya';
+export type QuestId = 'first-flame' | 'help-sharma-aunty' | 'market-lights' | 'temple-memory' | 'last-diya' | 'share-the-light';
 export type QuestStatus = 'locked' | 'available' | 'active' | 'completed';
 export interface QuestState { id: QuestId; status: QuestStatus; progress: number; target: number; }
 export interface RoomPlayerSnapshot { playerId: PlayerId; transform: PlayerTransform; }
