@@ -415,7 +415,6 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
         remoteAvatarLodEnabled: boolean;
         touchControlsVisible: boolean;
         graphicsQuality: 'low' | 'high';
-        setGraphicsQuality: (quality: 'low' | 'high') => void;
         rendererInfo: { calls: number; triangles: number; geometries: number; textures: number; pixelRatio: number; shadowsEnabled: boolean };
       };
     };
