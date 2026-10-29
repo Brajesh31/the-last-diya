@@ -96,3 +96,14 @@ export function createVerticalSliceNpcs(): THREE.Group {
   }
   return npcs;
 }
+
+export function disposeVerticalSliceNpcs(npcs: THREE.Group): void {
+  npcs.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.dispose();
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materials) material.dispose();
+  });
+  npcs.clear();
+}
