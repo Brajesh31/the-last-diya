@@ -1,0 +1,67 @@
+name: Release Candidate Gate
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'rc-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm install
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Collision regression
+        run: npm run test:collision
+
+      - name: Server security regression
+        run: npm run test:server-security
+
+      - name: Server hardening regression
+        run: npm run test:server-hardening
+
+      - name: Multiplayer regression
+        run: npm run test:multiplayer
+
+      - name: Multiplayer load regression
+        run: npm run test:multiplayer:load
+
+      - name: Browser multiplayer regression
+        run: npm run test:browser:multiplayer
+
+      - name: Mobile browser regression
+        run: npm run test:browser:mobile
+
+      - name: Browser rendering performance regression
+        run: npm run test:browser:perf
+
+      - name: Release metadata
+        run: |
+          echo "release_ref=${GITHUB_REF}" >> "$GITHUB_STEP_SUMMARY"
+          echo "commit=${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
+          echo "client_version=0.5.0" >> "$GITHUB_STEP_SUMMARY"
+          echo "All automated release gates completed." >> "$GITHUB_STEP_SUMMARY"
