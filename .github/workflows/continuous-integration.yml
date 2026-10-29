@@ -39,7 +39,7 @@ jobs:
       - name: Start server for runtime regressions
         shell: bash
         run: |
-          node apps/server/dist/index.js > /tmp/the-last-diya-server.log 2>&1 &
+          npm start --workspace=@the-last-diya/server > /tmp/the-last-diya-server.log 2>&1 &
           echo $! > /tmp/the-last-diya-server.pid
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:8787/health > /tmp/the-last-diya-health.json; then
