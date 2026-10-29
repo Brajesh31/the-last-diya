@@ -1,0 +1,62 @@
+name: Security and Observability
+
+on:
+  push:
+    paths:
+      - 'apps/server/**'
+      - 'packages/networking/**'
+      - 'packages/shared/**'
+      - '.github/workflows/security-observability.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  hardening:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify production server safeguards
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('apps/server/src/index.ts')
+          text = path.read_text()
+          required = [
+            'maxPayload: 16 * 1024',
+            'perMessageDeflate: false',
+            'MAX_CONNECTIONS_PER_IP',
+            'HANDSHAKE_TIMEOUT_MS',
+            'MESSAGE_RATE_WINDOW_MS',
+            'MAX_MESSAGES_PER_WINDOW',
+            'WS_ALLOWED_ORIGINS',
+            'HEARTBEAT_INTERVAL_MS',
+            'SESSION_GRACE_MS',
+          ]
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit('Missing production safeguards: ' + ', '.join(missing))
+      - name: Verify security regression suite
+        run: |
+          npm run typecheck
+          npm run build
+          npm run test:server-security
+          npm run test:server-hardening
+      - name: Commit verified security baseline
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/security-observability.yml
+          git diff --cached --quiet && exit 0
+          git commit -m 'ci(server): enforce production security baseline'
+          git push
