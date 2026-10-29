@@ -32,6 +32,8 @@ jobs:
         run: npm run typecheck
       - name: Build
         run: npm run build
+      - name: Protocol compatibility regression
+        run: npm run test:protocol
       - name: Collision regression
         run: npm run test:collision
       - name: Server security regression
