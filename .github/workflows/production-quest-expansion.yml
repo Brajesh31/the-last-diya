@@ -41,9 +41,6 @@ jobs:
               "target: quest.id === 'market-lights' || quest.id === 'share-the-light' ? 3 : 1,")
 
           replace('apps/server/src/index.ts',
-              "  if (message.type === 'share_flame_request') {\n    if (rateLimited(player)) return;",
-              "  if (message.type === 'share_flame_request') {\n    if (rateLimited(player)) return;")
-          replace('apps/server/src/index.ts',
               "    increaseLight(player.roomId, player.id, 5); broadcastRoom(player.roomId, { type: 'flame_shared', fromPlayerId: player.id, toPlayerId: target.id, lightLevel: getRoomLight(player.roomId) }); return;",
               "    increaseLight(player.roomId, player.id, 5);\n    // The post-finale epilogue is personal: every player must make three meaningful shares.\n    advanceQuest(player, 'share-the-light');\n    broadcastRoom(player.roomId, { type: 'flame_shared', fromPlayerId: player.id, toPlayerId: target.id, lightLevel: getRoomLight(player.roomId) }); return;")
 
@@ -57,7 +54,7 @@ jobs:
       - name: Verify and commit
         shell: bash
         run: |
-          npm ci
+          npm install
           npm run typecheck
           npm run build
           git config user.name 'github-actions[bot]'
