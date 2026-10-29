@@ -138,6 +138,61 @@
 - [ ] Monitoring and error reporting
 - [ ] Analytics and playtest feedback loop
 
+## Phase 7 · Mobile Browser | In progress
+
+The control implementation and low-quality rendering toggle exist, and Chromium checks exercise their behavior. This is not the same as verifying acceptable performance on real phones.
+
+- [x] Touch movement and interaction controls
+- [x] Low-quality rendering mode with capped pixel ratio and disabled shadow maps
+- [x] Mobile Chromium control test added to CI
+- [ ] Re-run and keep mobile-control CI green after graphics-quality changes
+- [ ] Test on at least one mid-range Android device and one iOS Safari device
+- [ ] Measure frame-time percentiles, long tasks, memory growth and thermal stability on real hardware
+- [ ] Check safe-area insets, text readability, touch target reachability and dialogue overlap on narrow screens
+- [ ] Tune low-quality defaults from device measurements, not CI software-renderer FPS
+- [ ] Add a repeatable mobile playtest checklist and record device/browser/build details
+
+## Phase 8 · Release Readiness and Production Launch
+
+### Gate A · Stable vertical slice
+- [ ] All workspace type-check and build workflows pass on the same commit
+- [ ] Browser multiplayer and mobile-control E2E workflows pass on the same commit
+- [ ] Complete a human-led two-player session from spawn through the final celebration
+- [ ] No P0/P1 gameplay, connection, progression or recovery defects remain
+- [ ] Record known issues and provide a reproducible local setup
+
+### Gate B · Real-device performance
+- [ ] Establish minimum supported desktop and mobile device/browser matrix
+- [ ] Record 5-minute and 20-minute sessions on real GPU hardware
+- [ ] Set and meet an agreed frame-time target for the minimum supported device
+- [ ] Validate reconnect behavior after network loss, tab backgrounding and server restart
+- [ ] Check memory, WebSocket stability and resource cleanup after repeated reconnects
+
+### Gate C · Production service
+- [ ] Choose and document hosting for the web client and persistent multiplayer server
+- [ ] Configure HTTPS/WSS, production Origin allowlist and environment variables
+- [ ] Decide the identity/session and abuse-prevention model before public launch
+- [ ] Configure structured logs, error reporting, health checks and alert ownership
+- [ ] Add persistent storage only for data that needs to survive server restarts, with migrations and backup/restore tests
+- [ ] Run deployment smoke tests and a realistic service load test
+- [ ] Document rollback, incident response and recovery procedures
+- [ ] Publish privacy, attribution and license information
+
+### Gate D · Small public playtest
+- [ ] Invite a small test cohort before a broad launch
+- [ ] Collect structured feedback on onboarding, controls, motion comfort, story comprehension and co-op coordination
+- [ ] Prioritize defects by player impact and verify fixes against the same acceptance tests
+- [ ] Expand capacity only after server and browser telemetry supports the target
+
+## Recommended build order
+
+1. Restore a green baseline: typecheck/build, multiplayer browser test, mobile-control test and rendering profile on one commit.
+2. Validate the full player journey manually in two separate browsers, including disconnect/reconnect and final celebration.
+3. Run real-device performance and usability tests; do not infer mobile readiness from SwiftShader CI benchmarks.
+4. Finish production dialogue and authored assets once the core loop is stable and device constraints are known.
+5. Complete production hosting, session/security decisions, observability, backups and rollback before inviting the public.
+6. Launch to a limited cohort, fix observed problems, and only then widen access.
+
 ## Phase 7 · Mobile Browser
 - [ ] Touch controls
 - [ ] Low-quality rendering mode
