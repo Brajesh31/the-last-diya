@@ -23,74 +23,97 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Integrate experience layer
+      - name: Integrate experience layer safely
         shell: bash
         run: |
           python3 <<'PY'
           from pathlib import Path
+          import re
 
           main = Path('apps/game/src/main.ts')
           text = main.read_text()
 
-          def once(old: str, new: str, label: str):
-              global text
-              if new in text:
-                  return
-              if text.count(old) != 1:
-                  raise SystemExit(f'Integration marker {label!r} expected once, found {text.count(old)}')
-              text = text.replace(old, new, 1)
+          # Collapse accidental duplicate network state blocks left by earlier
+          # idempotent integrations. Keep the first canonical definition.
+          pattern = re.compile(
+              r"const networkExperience = createNetworkExperienceState\(\);\n"
+              r"const reducedMotion = window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches;\n"
+              r"function setLatency\(latencyMs: number \| null\) \{\n"
+              r"  const latency = document\.getElementById\('latency'\);\n"
+              r"  if \(!latency\) return;\n"
+              r"  latency\.textContent = latencyMs === null \? 'LATENCY --' : `LATENCY \$\{Math\.round\(latencyMs\)\}ms`;\n"
+              r"\}\n"
+          )
+          matches = list(pattern.finditer(text))
+          if len(matches) > 1:
+              first = matches[0]
+              rebuilt = text[:first.end()]
+              cursor = first.end()
+              for match in matches[1:]:
+                  rebuilt += text[cursor:match.start()]
+                  cursor = match.end()
+              rebuilt += text[cursor:]
+              text = rebuilt
 
-          once(
+          def add_once(marker: str, insertion: str, label: str):
+              global text
+              if insertion in text:
+                  return
+              if text.count(marker) != 1:
+                  raise SystemExit(f"integration marker {label!r} expected once, found {text.count(marker)}")
+              text = text.replace(marker, insertion, 1)
+
+          add_once(
               "import { movePlayerWithCollision } from './world/player-collision';\n",
               "import { movePlayerWithCollision } from './world/player-collision';\nimport { applyPong, createNetworkExperienceState, interpolateRemoteTransform, shouldSendPing } from './world/network-experience';\n",
               'network import',
           )
-          once(
+          add_once(
               '  <div class="hud-heading"><strong>THE LAST DIYA</strong><span id="connection" class="connection-state">CONNECTING</span></div>',
               '  <div class="hud-heading"><strong>THE LAST DIYA</strong><span id="connection" class="connection-state">CONNECTING</span></div>\n  <div id="latency" class="network-latency" aria-live="polite">LATENCY --</div>',
               'latency HUD',
           )
-          once(
+          add_once(
               '.hud .connection-state{font-size:10px;color:#b2b5aa;letter-spacing:.08em}',
               '.hud .connection-state{font-size:10px;color:#b2b5aa;letter-spacing:.08em}.network-latency{font-size:10px;color:#8f938b;letter-spacing:.06em;font-variant-numeric:tabular-nums}',
               'latency CSS',
           )
-          once(
+          add_once(
               'let finalEventActive = false;\n',
               "let finalEventActive = false;\nconst networkExperience = createNetworkExperienceState();\nconst reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;\nfunction setLatency(latencyMs: number | null) {\n  const latency = document.getElementById('latency');\n  if (!latency) return;\n  latency.textContent = latencyMs === null ? 'LATENCY --' : `LATENCY ${Math.round(latencyMs)}ms`;\n}\n",
               'network state',
           )
-          once(
+          add_once(
               "  if (message.type === 'session_assigned') {\n",
               "  if (message.type === 'pong') { applyPong(networkExperience, message.timestamp, Date.now()); setLatency(networkExperience.latencyMs); return; }\n  if (message.type === 'session_assigned') {\n",
               'pong handling',
           )
-          once(
+          add_once(
               "    reconnectAttempt = 0;\n    setConnectionState('ONLINE');",
               "    reconnectAttempt = 0;\n    networkExperience.reconnectCount += 1;\n    setConnectionState('ONLINE');",
               'reconnect telemetry',
           )
-          once(
+          add_once(
               "  const inputX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));",
               "  const pingAt = Date.now();\n  if (socket?.readyState === WebSocket.OPEN && shouldSendPing(networkExperience, pingAt)) send({ type: 'ping', timestamp: pingAt });\n  const inputX = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));",
               'ping scheduling',
           )
-          once(
+          add_once(
               "    remote.mesh.position.lerp(remote.target, Math.min(1, deltaSeconds * 10));\n    remote.mesh.rotation.y = THREE.MathUtils.lerp(remote.mesh.rotation.y, remote.rotation, Math.min(1, deltaSeconds * 10));",
               "    const remoteRotation = interpolateRemoteTransform(remote.mesh.position, remote.target, remote.mesh.rotation.y, remote.rotation, deltaSeconds, reducedMotion ? 7 : 10).rotation;\n    remote.mesh.rotation.y = remoteRotation;",
               'remote interpolation',
           )
-          once(
+          add_once(
               '        finalEventActive,\n        remoteAvatarLodEnabled,',
               '        finalEventActive,\n        latencyMs: networkExperience.latencyMs,\n        reconnectCount: networkExperience.reconnectCount,\n        remoteAvatarLodEnabled,',
               'E2E network state',
           )
-          once(
+          add_once(
               '  diya.rotation.y += deltaSeconds * 0.35;\n  flame.scale.y = 1.55 + Math.sin(now * 0.006) * 0.25;\n  communityFlame.scale.y = 1.9 + Math.sin(now * 0.004) * 0.25;\n  memoryMarker.rotation.y += deltaSeconds * 0.6;',
               '  if (!reducedMotion) {\n    diya.rotation.y += deltaSeconds * 0.35;\n    flame.scale.y = 1.55 + Math.sin(now * 0.006) * 0.25;\n    communityFlame.scale.y = 1.9 + Math.sin(now * 0.004) * 0.25;\n    memoryMarker.rotation.y += deltaSeconds * 0.6;\n  }',
               'reduced motion',
           )
-          once(
+          add_once(
               'connect();\nrequestAnimationFrame(update);',
               "connect();\nsetLatency(null);\nrequestAnimationFrame(update);\n\naddEventListener('beforeunload', () => {\n  touchControls.dispose();\n  celebration.dispose();\n  memorySequence.close();\n  clearRemotePlayers();\n  if (socket) socket.close();\n});",
               'resource cleanup',
@@ -115,5 +138,5 @@ jobs:
             echo "Experience layer already integrated."
             exit 0
           fi
-          git commit -m "feat(game): integrate network experience and recovery UX"
+          git commit -m "fix(game): normalize experience layer integration"
           git push
