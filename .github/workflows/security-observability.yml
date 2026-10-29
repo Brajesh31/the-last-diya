@@ -23,8 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - run: npm install
       - name: Verify production server safeguards
         shell: python
         run: |
@@ -45,12 +44,36 @@ jobs:
           missing = [item for item in required if item not in text]
           if missing:
               raise SystemExit('Missing production safeguards: ' + ', '.join(missing))
-      - name: Verify security regression suite
+      - name: Build and start regression server
+        env:
+          PORT: 8787
+          NODE_ENV: test
+          WS_ALLOWED_ORIGINS: https://game.example.test
         run: |
           npm run typecheck
           npm run build
+          node apps/server/dist/index.js > /tmp/the-last-diya-security-server.log 2>&1 &
+          echo $! > /tmp/the-last-diya-security-server.pid
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8787/health > /tmp/security-health.json; then
+              cat /tmp/security-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/the-last-diya-security-server.log
+          exit 1
+      - name: Verify security regression suite
+        env:
+          WS_ALLOWED_ORIGINS: https://game.example.test
+        run: |
           npm run test:server-security
           npm run test:server-hardening
+      - name: Stop regression server
+        if: always()
+        run: |
+          if [ -f /tmp/the-last-diya-security-server.pid ]; then kill "$(cat /tmp/the-last-diya-security-server.pid)" || true; fi
+          cat /tmp/the-last-diya-security-server.log || true
       - name: Commit verified security baseline
         shell: bash
         run: |
