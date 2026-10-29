@@ -59,7 +59,7 @@ jobs:
           exit 1
       - name: Production health regression
         env:
-          HEALTH_URL: http://127.0.0.1:8787
+          GAME_SERVER_URL: http://127.0.0.1:8787
         run: npm run test:production:health
       - name: Start game client
         shell: bash
