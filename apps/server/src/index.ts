@@ -8,7 +8,25 @@ import { STARTING_INVENTORY, canProgressQuest, getQuestDefinition, initialQuestS
 import { decodeMessage, encodeMessage } from '@the-last-diya/networking';
 
 const port = Number(process.env.PORT ?? 8787);
-const http = createServer((_, response) => { response.writeHead(200, { 'content-type': 'application/json' }); response.end(JSON.stringify({ name: 'the-last-diya-server', status: 'ok', phase: 'vertical-slice' })); });
+const BUILD_VERSION = process.env.BUILD_VERSION ?? 'development';
+const SERVER_START_TIME = Date.now();
+const http = createServer((request, response) => {
+  const path = request.url?.split('?')[0] ?? '/';
+  response.setHeader('content-type', 'application/json');
+  response.setHeader('cache-control', 'no-store');
+  if (path === '/health') {
+    response.writeHead(200);
+    response.end(JSON.stringify({ name: 'the-last-diya-server', status: 'ok', version: BUILD_VERSION, uptimeSeconds: Math.floor((Date.now() - SERVER_START_TIME) / 1000) }));
+    return;
+  }
+  if (path === '/ready') {
+    response.writeHead(200);
+    response.end(JSON.stringify({ name: 'the-last-diya-server', status: 'ready', version: BUILD_VERSION }));
+    return;
+  }
+  response.writeHead(404);
+  response.end(JSON.stringify({ status: 'not_found' }));
+});
 function readBoundedInteger(name: string, fallback: number, min: number, max: number): number {
   const raw = Number(process.env[name]);
   return Number.isInteger(raw) && raw >= min && raw <= max ? raw : fallback;
