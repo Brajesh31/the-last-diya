@@ -401,6 +401,7 @@ if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('e2e'
       moveTo: (x: number, z: number) => Promise<void>;
       interact: () => void;
       setShadowMapEnabled: (enabled: boolean) => void;
+      setGraphicsQuality: (quality: 'low' | 'high') => void;
       getState: () => {
         playerId: PlayerId | null;
         position: PlayerTransform;
