@@ -3,6 +3,7 @@ import * as THREE from 'three';
 export interface CelebrationController {
   update(deltaSeconds: number): void;
   trigger(): void;
+  setVisible(visible: boolean): void;
   dispose(): void;
 }
 
@@ -89,6 +90,11 @@ export function createCelebration(scene: THREE.Scene): CelebrationController {
       }
       positions.needsUpdate = true;
       particles.rotation.y = elapsed * 0.06;
+    },
+    setVisible(visible) {
+      group.visible = visible;
+      if (!visible) { active = false; return; }
+      if (!active) { active = true; elapsed = 0; }
     },
     trigger() {
       active = true;
