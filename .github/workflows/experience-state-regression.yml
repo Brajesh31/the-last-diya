@@ -1,0 +1,31 @@
+name: Experience State Regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/game/src/world/reconnect-experience.ts'
+      - 'apps/game/src/world/final-event-state.ts'
+      - 'scripts/experience-state-regression-test.mjs'
+      - 'package.json'
+      - '.github/workflows/experience-state-regression.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run test:experience-state
+      - run: npm run test:experience-feedback
+      - run: npm run test:network-experience
+      - run: npm run typecheck
