@@ -32,6 +32,8 @@ jobs:
         run: npm run build
       - name: Build performance budget
         run: npm run test:build:budget
+      - name: Accessibility regression
+        run: npm run test:accessibility
       - name: Protocol regression
         run: npm run test:protocol
       - name: Network experience regression
